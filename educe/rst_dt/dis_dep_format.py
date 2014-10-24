@@ -4,10 +4,10 @@
 # Authors: Mathieu Morey
 # License: CeCILL-B (BSD3-like)
 
-"""This module implements a loader and dumper for the CONLL-DT format.
+"""This module implements a loader and dumper for the dis-dep format.
 
-The CONLL-DT format is a proposal to encode discourse trees akin to
-the CONLL formats for syntactic and semantic dependencies.
+The dis-dep format is a dependency-based alternative to the dis format
+used to represent discourse trees in the RST-DT treebank.
 """
 
 from educe.external.parser import SearchableTree
@@ -18,7 +18,7 @@ from ..internalutil import treenode
 _FORMAT = 'id text head label deps'
 
 
-def _dump_conlldt(dtree, f):
+def _dump_dis_dep(dtree, f):
     # special depth-first, pre-order, iterator
     def _depth_first_iterator(dtree):
         """Iterate on the nodes of a dependency tree, depth-first, pre-order.
@@ -60,7 +60,7 @@ def _dump_conlldt(dtree, f):
     # 
     for node in sorted(list(_depth_first_iterator(dtree))):
         s_fields = [str(node[0]),  # id
-                    str(node[1]),  # text_span
+                    # str(node[1]),  # text_span
                     str(node[2]),  # text
                     str(node[3]) if node[3] is not None else '0',  # parent_id
                     str(node[4]) if node[4] is not None else 'ROOT',  # label
@@ -70,6 +70,6 @@ def _dump_conlldt(dtree, f):
         print '{s}'.format(s=s)
 
 
-def dump_conlldt_file(dtree, f):
-    """Dump a discourse dependency tree in the CONLL-DT format to a file."""
-    _dump_conlldt(dtree, f)
+def dump_dis_dep_file(dtree, f):
+    """Dump a discourse dependency tree in the dis-dep format to a file."""
+    _dump_dis_dep(dtree, f)
