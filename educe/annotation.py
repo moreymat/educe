@@ -24,6 +24,18 @@ class Span(object):
     """
     What portion of text an annotation corresponds to.
     Assumed to be in terms of character offsets
+
+    The way we interpret spans in educe amounts to how Python
+    interprets array slice indices.
+
+    One way to understand them is to think of offsets as
+    sitting in between individual characters ::
+
+          h   o   w   d   y
+        0   1   2   3   4   5
+
+    So `(0,5)` covers the whole word above, and `(1,2)`
+    picks out the letter "o"
     """
     def __init__(self, start, end):
         self.char_start = start
@@ -57,7 +69,7 @@ class Span(object):
     def __hash__(self):
         return (self.char_start, self.char_end).__hash__()
 
-    def len(self):
+    def length(self):
         """
         Return the length of this span
         """
@@ -106,16 +118,32 @@ class Span(object):
                 self.char_start <= other.char_start and\
                 self.char_end >= other.char_end
 
-    def overlaps(self, other):
+    def overlaps(self, other, inclusive=False):
         """
         Return the overlapping region if two spans have regions
-        in common, or else None
+        in common, or else None. ::
+
+            Span(5, 10).overlaps(Span(8, 12)) == Span(8, 10)
+            Span(5, 10).overlaps(Span(11, 12)) == None
+
+        If `inclusive == True`, spans with touching edges are
+        considered to overlap ::
+
+            Span(5, 10).overlaps(Span(10, 12)) == None
+            Span(5, 10).overlaps(Span(10, 12), inclusive=True) == Span(10, 10)
+
         """
         if other is None:
             return None
+        elif self.encloses(other):
+            return other
+        elif other.encloses(self):
+            return self
         else:
             common_start = max(self.char_start, other.char_start)
             common_end = min(self.char_end, other.char_end)
+            if inclusive and common_start <= common_end:
+                return Span(common_start, common_end)
             if common_start < common_end:
                 return Span(common_start, common_end)
             else:
