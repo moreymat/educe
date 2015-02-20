@@ -32,7 +32,7 @@ def build_doc_preprocessor():
     """Build the preprocessor for feature extraction in each EDU of doc"""
     # TODO re-do in a better, more modular way
     brown_clusters = fetch_brown_clusters()
-    docppp = DocumentPlusPreprocessor(token_filter_li2014, brown_clusters) 
+    docppp = DocumentPlusPreprocessor(token_filter_li2014, brown_clusters)
     return docppp.preprocess
 
 
@@ -65,10 +65,16 @@ def extract_single_word(edu_info):
 
 
 # EXPERIMENTAL: Brown clusters features
-SINGLE_BC = [
-    ('ptb_word_first_bc3200_8', Substance.DISCRETE),
-    ('ptb_word_last_bc3200_8', Substance.DISCRETE),
-]
+# prefix length for the bit-strings
+# Turian et al. use [4, 6, 10, 20]
+P_LENS = [4, 6, 8, 10, 20]
+
+SINGLE_BC = []
+for pre_len in P_LENS:
+    SINGLE_BC.extend([
+        ('ptb_word_first_bc3200_{}'.format(pre_len), Substance.DISCRETE),
+        ('ptb_word_last_bc3200_{}'.format(pre_len), Substance.DISCRETE),
+    ])
 
 
 def extract_single_bc(edu_info):
@@ -79,10 +85,13 @@ def extract_single_bc(edu_info):
         return
 
     if bc3200:
-        if bc3200[0] is not None:
-            yield ('ptb_word_first_bc3200_8', bc3200[0][:8])
-        if bc3200[-1] is not None:
-            yield ('ptb_word_last_bc3200_8', bc3200[-1][:8])
+        for p_len in P_LENS:
+            if bc3200[0] is not None:
+                yield ('ptb_word_first_bc3200_{}'.format(p_len),
+                       bc3200[0][:p_len])
+            if bc3200[-1] is not None:
+                yield ('ptb_word_last_bc3200_{}'.format(p_len),
+                       bc3200[-1][:p_len])
 
 # end EXPERIMENTAL
 
