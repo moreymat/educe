@@ -302,7 +302,7 @@ def relative_indices(group_indices, reverse=False):
 class DocumentPlusPreprocessor(object):
     """Preprocessor for feature extraction on a DocumentPlus"""
 
-    def __init__(self, token_filter=None):
+    def __init__(self, token_filter=None, brown_clusters=None):
         """
         token_filter is a function that returns True if a token should be
         kept; if None is provided, all tokens are kept
@@ -310,6 +310,7 @@ class DocumentPlusPreprocessor(object):
         if token_filter is None:
             token_filter = lambda token: True
         self.token_filter = token_filter
+        self.brown_clusters = brown_clusters
 
     def preprocess(self, doc):
         """Preprocess a document and output basic features for each EDU.
@@ -317,6 +318,7 @@ class DocumentPlusPreprocessor(object):
         Return a dict(EDU, (dict(basic_feat_name, basic_feat_val)))
         """
         token_filter = self.token_filter
+        bc = self.brown_clusters
 
         edus = doc.edus
         edu2sent = doc.edu2sent
@@ -371,6 +373,16 @@ class DocumentPlusPreprocessor(object):
                     res['tokens'] = tokens
                     res['tags'] = [tok.tag for tok in tokens]
                     res['words'] = [tok.word for tok in tokens]
+                    # brown clusters
+                    if bc is not None:
+                        res['bc100'] = [bc[100].get(w, None)
+                                        for w in res['words']]
+                        res['bc320'] = [bc[320].get(w, None)
+                                        for w in res['words']]
+                        res['bc1000'] = [bc[1000].get(w, None)
+                                         for w in res['words']]
+                        res['bc3200'] = [bc[3200].get(w, None)
+                                         for w in res['words']]
 
             # doc structure
 
