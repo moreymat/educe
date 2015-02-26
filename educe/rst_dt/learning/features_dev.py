@@ -2,6 +2,8 @@
 
 """
 
+from __future__ import print_function
+
 import re
 
 from educe.internalutil import treenode
@@ -31,7 +33,7 @@ def token_filter_li2014(token):
 def build_doc_preprocessor():
     """Build the preprocessor for feature extraction in each EDU of doc"""
     # TODO re-do in a better, more modular way
-    brown_clusters = fetch_brown_clusters()
+    brown_clusters = None  # fetch_brown_clusters()
     docppp = DocumentPlusPreprocessor(token_filter_li2014, brown_clusters)
     return docppp.preprocess
 
@@ -197,7 +199,33 @@ def get_syntactic_labels(edu_info):
 
     edu = edu_info['edu']
 
-    # for each PTB tree, get the tree position of its leaves that are in the
+    # raise warning if this EDU belongs to > 1 PTB tree
+    if len(ptrees) > 1:
+        w_msg = 'W: {} belongs to more than one PTB tree'
+        print(w_msg.format(edu))
+        print('EDU text on span {}'.format(edu.text_span()))
+        print('    {}'.format(edu.text()))
+        for ptree in ptrees:
+            print('PTB tree on span {}'.format(ptree.text_span()))
+            print('    ', ' '.join(tok.word for tok in ptree.leaves()))
+        print('')
+        return []
+    elif len(ptrees) == 0:
+        w_msg = 'W: EDU {} does not belong to any PTB tree'
+        print(w_msg.format(edu))
+        return []
+
+    # now we can safely assume there is a unique PTB tree
+    ptree = ptrees[0]
+    # get the indices of the leaves of the tree that are in this EDU
+    leaf_ids = [idx for idx, leaf in enumerate(ptree.leaves())
+                if leaf.overlaps(edu)]
+    # use indices to get the tree position of their lowest common parent
+    idx_start = leaf_ids[0]
+    idx_end = leaf_ids[-1] + 1
+    assert leaf_ids == range(leaf_ids[0], leaf_ids[-1]+1)  # sanity check
+    treepos_lcp = ptree.treeposition_spanning_leaves(idx_start, idx_end)
+
     # EDU
     tpos_leaves_edu = ((ptree, [tpos_leaf
                                 for tpos_leaf in ptree.treepositions('leaves')
@@ -206,6 +234,10 @@ def get_syntactic_labels(edu_info):
     # for each span of syntactic leaves in this EDU
     for ptree, leaves in tpos_leaves_edu:
         tpos_parent = lowest_common_parent(leaves)
+        # CHECKING / RESUME HERE
+        assert tpos_parent == treepos_lcp
+        # end CHECKING
+
         # for each leaf between leftmost and rightmost, add its ancestors
         # up to the lowest common parent
         for leaf in leaves:
@@ -230,7 +262,8 @@ def extract_single_syntax(edu_info):
     """syntactic features for the EDU"""
     syn_labels = get_syntactic_labels(edu_info)
     if syn_labels is not None:
-        yield ('SYN', syn_labels)
+        for syn_label in syn_labels:
+            yield ('SYN', syn_label)
 
 
 # TODO: features on semantic similarity
@@ -258,8 +291,8 @@ def build_edu_feature_extractor():
     # sent
     feats.extend(SINGLE_SENTENCE)
     funcs.append(extract_single_sentence)
-    # syntax (disabled)
-    # feats.extend(_single_syntax)
+    # syntax (EXPERIMENTAL)
+    # feats.extend(SINGLE_SYNTAX)
     # funcs.append(extract_single_syntax)
 
     def _extract_all(edu_info):

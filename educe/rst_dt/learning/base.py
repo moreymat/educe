@@ -368,7 +368,7 @@ class DocumentPlusPreprocessor(object):
             # tokens
             if ptb_tokens is not None:
                 tokens = ptb_tokens[edu]
-                if tokens is not None:
+                if tokens:
                     tokens = [tt for tt in tokens if token_filter(tt)]
                     res['tokens'] = tokens
                     res['tags'] = [tok.tag for tok in tokens]
@@ -383,6 +383,12 @@ class DocumentPlusPreprocessor(object):
                                          for w in res['words']]
                         res['bc3200'] = [bc[3200].get(w, None)
                                          for w in res['words']]
+                # TODO move this functionality to educe.rst_dt.ptb
+                else:  # backoff on raw words
+                    res['words'] = res['raw_words']
+                    w_msg = '{}-{} backoff: {}'
+                    print(w_msg.format(doc.grouping, edu_idx, edu.text()))
+
 
             # doc structure
 
