@@ -5,7 +5,11 @@
 from __future__ import print_function
 
 import re
+import itertools
 
+from nltk.tree import Tree
+
+from educe.external.postag import Token
 from educe.internalutil import treenode
 from educe.learning.keys import Substance
 from .base import lowest_common_parent, DocumentPlusPreprocessor
@@ -153,8 +157,66 @@ def extract_single_para(edu_info):
             yield ('paragraph_id_div5', para_idx / 5)
 
 
-# features on syntax
+# syntactic features
+
+# helpers
+def syn_subtree_spanning_edu(edu_info):
+    """Syntactic subtree that spans the EDU
+
+    Returns (tree, treepos) where treepos is the position of the subtree
+    """
+    try:
+        ptrees = edu_info['ptrees']
+    except KeyError:
+        return None
+
+    edu = edu_info['edu']
+    # raise warning if this EDU belongs to > 1 PTB tree
+    if len(ptrees) > 1:
+        print('W: more than 1 tree')
+        return None
+    elif not ptrees:
+        print('W: no tree')
+        return None
+
+    # now we can safely assume there is one PTB tree
+    ptree = ptrees[0]
+    # get the indices of the leaves of the tree that are in this EDU
+    leaf_ids = [idx for idx, leaf in enumerate(ptree.leaves())
+                if leaf.overlaps(edu)]
+    # use indices to get the tree position of their lowest common parent
+    idx_start = leaf_ids[0]
+    idx_end = leaf_ids[-1] + 1
+    assert leaf_ids == range(leaf_ids[0], leaf_ids[-1]+1)  # sanity check
+    treepos_lcp = ptree.treeposition_spanning_leaves(idx_start, idx_end)
+
+    return (ptree, treepos_lcp)
+
+
+def syn_label_spanning_edu(edu_info):
+    """Get the syntactic label of the lowest node spanning the EDU"""
+    try:
+        ptree, treepos_lcp = syn_subtree_spanning_edu(edu_info)
+    except TypeError:
+        # if call returns None
+        return None
+
+    spanning_subtree = ptree[treepos_lcp]
+    if spanning_subtree is None:
+        return None
+
+    if isinstance(spanning_subtree, Tree):
+        spanning_lbl = treenode(spanning_subtree)
+    elif isinstance(spanning_subtree, Token):
+        spanning_lbl = spanning_subtree.tag
+    else:
+        raise ValueError('spanning_subtree is neither a Tree nor a Token')
+
+    return spanning_lbl
+
+
 # helper
+# TODO rewrite
 def get_syntactic_labels(edu_info):
     "Syntactic labels for this EDU"
     result = []
@@ -218,19 +280,28 @@ def get_syntactic_labels(edu_info):
                 else:
                     result.append(node_lbl)
     return result
+# end rewrite
 
 
 SINGLE_SYNTAX = [
-    ('SYN', Substance.BASKET)
+    ('SYN_label', Substance.DISCRETE),
+#    ('SYN', Substance.BASKET),
 ]
 
 
 def extract_single_syntax(edu_info):
     """syntactic features for the EDU"""
-    syn_labels = get_syntactic_labels(edu_info)
-    if syn_labels is not None:
-        for syn_label in syn_labels:
-            yield ('SYN', syn_label)
+    # EXPERIMENTAL
+    syn_lbl = syn_label_spanning_edu(edu_info)
+    if syn_lbl is not None:
+        yield ('SYN_label', syn_lbl)
+
+    # former features
+    if False:
+        syn_labels = get_syntactic_labels(edu_info)
+        if syn_labels is not None:
+            for syn_label in syn_labels:
+                yield ('SYN', syn_label)
 
 
 # TODO: features on semantic similarity
@@ -256,8 +327,8 @@ def build_edu_feature_extractor():
     feats.extend(SINGLE_SENTENCE)
     funcs.append(extract_single_sentence)
     # syntax (EXPERIMENTAL)
-    # feats.extend(SINGLE_SYNTAX)
-    # funcs.append(extract_single_syntax)
+    feats.extend(SINGLE_SYNTAX)
+    funcs.append(extract_single_syntax)
 
     def _extract_all(edu_info):
         """inner helper because I am lost at sea here"""
@@ -455,6 +526,51 @@ def extract_pair_sent(edu_info1, edu_info2):
                (rev_sent_id1 - rev_sent_id2) / 3)
 
 
+PAIR_SYNTAX = [
+    ('SYN_label_pair', Substance.DISCRETE),
+    # relation between spanning nodes in the syntactic tree
+    ('SYN_same_span', Substance.CONTINUOUS),
+    ('SYN_sisters', Substance.CONTINUOUS),
+    ('SYN_embed', Substance.CONTINUOUS),
+]
+
+
+def extract_pair_syntax(edu_info1, edu_info2):
+    """syntactic features for the pair of EDUs"""
+    try:
+        ptree1, treepos_lcp1 = syn_subtree_spanning_edu(edu_info1)
+        ptree2, treepos_lcp2 = syn_subtree_spanning_edu(edu_info2)
+    except TypeError:
+        # if either call returns None, just leave
+        return
+
+    syn_lbl1 = ptree1[treepos_lcp1]
+    syn_lbl2 = ptree2[treepos_lcp2]
+
+    # EXPERIMENTAL
+    if syn_lbl1 is not None and syn_lbl2 is not None:
+        yield ('SYN_label_pair', (syn_lbl1, syn_lbl2))
+
+    # if both EDUs belong to the same sentence
+    if (ptree1 == ptree2):
+        if treepos_lcp1 == treepos_lcp2:
+            yield ('SYN_same_span', True)
+        elif treepos_lcp1[:-1] == treepos_lcp2[:-1]:
+            yield ('SYN_sisters', True)
+        else:
+            for c1, c2 in itertools.izip_longest(treepos_lcp1, treepos_lcp2):
+                if c1 is None:  # c1 is a prefix for c2
+                    # means c2 is dominated by c1
+                    yield ('SYN_1_over_2', True)
+                    break
+                elif c2 is None:  # c2 is a prefix for c1
+                    # means c1 is dominated by c2
+                    yield ('SYN_2_over_1', True)
+                    break
+                elif c1 != c2:  # c1 and c2 differ
+                    # means they are in separate parts of the tree
+                    break
+
 def build_pair_feature_extractor():
     """Build the feature extractor for pairs of EDUs
 
@@ -482,8 +598,8 @@ def build_pair_feature_extractor():
     feats.extend(PAIR_LENGTH)
     funcs.append(extract_pair_length)
     # 5
-    # feats.extend(PAIR_SYNTAX)  # NotImplemented
-    # funcs.append(extract_pair_syntax)
+    feats.extend(PAIR_SYNTAX)
+    funcs.append(extract_pair_syntax)
     # 6
     # feats.extend(PAIR_SEMANTICS)  # NotImplemented
     # funcs.append(extract_pair_semantics)
