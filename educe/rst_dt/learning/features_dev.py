@@ -33,8 +33,9 @@ def token_filter_li2014(token):
 def build_doc_preprocessor():
     """Build the preprocessor for feature extraction in each EDU of doc"""
     # TODO re-do in a better, more modular way
+    token_filter = None  # token_filter_li2014
     brown_clusters = None  # fetch_brown_clusters()
-    docppp = DocumentPlusPreprocessor(token_filter_li2014, brown_clusters)
+    docppp = DocumentPlusPreprocessor(token_filter, brown_clusters)
     return docppp.preprocess
 
 

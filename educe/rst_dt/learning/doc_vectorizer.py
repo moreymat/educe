@@ -217,28 +217,47 @@ class DocumentCountVectorizer(object):
         sf_cache = dict()
 
         for edu1, edu2 in edu_pairs:
-            # retrieve info for each EDU
-            edu_info1 = edu_info[edu1]
-            edu_info2 = edu_info[edu2]
+            relevant_edus = {
+                'EDU1': edu1,
+                'EDU2': edu2,
+            }
 
-            # extract and cache single features
-            try:
-                sf_cache1 = sf_cache[edu1]
-            except KeyError:
-                sf_cache[edu1] = list(sing_extract(edu_info1))
-                sf_cache1 = sf_cache[edu1]
+            if True:  # enable experimental contextual features
+                # around e1
+                e1_idx = edu1.num
+                try:
+                    relevant_edus['EDU1_m1'] = doc.edus[e1_idx - 1]
+                except IndexError:
+                    pass
+                try:
+                    relevant_edus['EDU1_p1'] = doc.edus[e1_idx + 1]
+                except IndexError:
+                    pass
 
-            try:
-                sf_cache2 = sf_cache[edu2]
-            except KeyError:
-                sf_cache[edu2] = list(sing_extract(edu_info2))
-                sf_cache2 = sf_cache[edu2]
+                # around e2
+                e2_idx = edu2.num
+                try:
+                    relevant_edus['EDU2_m1'] = doc.edus[e2_idx - 1]
+                except IndexError:
+                    pass
+                try:
+                    relevant_edus['EDU2_p1'] = doc.edus[e2_idx + 1]
+                except IndexError:
+                    pass
 
             # extract pair features
-            feats = list(pair_extract(edu_info1, edu_info2))
-            # re-emit single EDU features with a suffix
-            feats.extend(list(re_emit(sf_cache1, '_EDU1')))
-            feats.extend(list(re_emit(sf_cache2, '_EDU2')))
+            feats = list(pair_extract(edu_info[edu1], edu_info[edu2]))
+
+            # extract, cache and re-emit single features
+            for ename, e in sorted(relevant_edus.items()):
+                try:
+                    efeats = sf_cache[e]
+                except KeyError:
+                    efeats = list(sing_extract(edu_info[e]))
+                    sf_cache[e] = efeats
+
+                suffix = '_{}'.format(ename)
+                feats.extend(list(re_emit(efeats, suffix)))
 
             # apply one hot encoding for all string values
             oh_feats = []
