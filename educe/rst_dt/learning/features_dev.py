@@ -327,8 +327,8 @@ def build_edu_feature_extractor():
     feats.extend(SINGLE_SENTENCE)
     funcs.append(extract_single_sentence)
     # syntax (EXPERIMENTAL)
-    feats.extend(SINGLE_SYNTAX)
-    funcs.append(extract_single_syntax)
+    # feats.extend(SINGLE_SYNTAX)
+    # funcs.append(extract_single_syntax)
 
     def _extract_all(edu_info):
         """inner helper because I am lost at sea here"""
@@ -414,6 +414,7 @@ def extract_pair_length(edu_info1, edu_info2):
     num_toks2 = len(words2)
 
     yield ('num_tokens_div5_pair', (num_toks1 / 5, num_toks2 / 5))
+    # TODO abs etc
     yield ('num_tokens_diff_div5', (num_toks1 - num_toks2) / 5)
 
 
@@ -440,8 +441,10 @@ def extract_pair_doc(edu_info1, edu_info2):
 # features on document structure: paragraphs and sentences
 
 PAIR_PARA = [
-    ('first_paragraph', Substance.DISCRETE),
-    ('num_paragraphs_between', Substance.CONTINUOUS),
+    ('dist_para_abs', Substance.CONTINUOUS),
+    ('dist_para_right', Substance.CONTINUOUS),
+    ('dist_para_left', Substance.CONTINUOUS),
+    ('same_para', Substance.DISCRETE),
     ('num_paragraphs_between_div3', Substance.CONTINUOUS)
 ]
 
@@ -453,16 +456,19 @@ def extract_pair_para(edu_info1, edu_info2):
         para_id2 = edu_info2['para_idx']
     except KeyError:
         return
-    if para_id1 is not None and para_id2 is not None:
-        if para_id1 < para_id2:
-            first_para = 'first'
-        elif para_id1 > para_id2:
-            first_para = 'second'
-        else:
-            first_para = 'same'
-        yield ('first_paragraph', first_para)
 
-        yield ('num_paragraphs_between', para_id1 - para_id2)
+    if para_id1 is not None and para_id2 is not None:
+        abs_para_dist = abs(para_id1 - para_id2)
+        yield ('dist_para_abs', abs_para_dist)
+
+        if para_id1 < para_id2: # right attachment (gov before dep)
+            yield ('dist_para_right', abs_para_dist)
+        elif para_id1 > para_id2:
+            yield ('dist_para_left', abs_para_dist)
+        else:
+            yield ('same_para', True)
+
+        # TODO: remove and see what happens
         yield ('num_paragraphs_between_div3', (para_id1 - para_id2) / 3)
 
 
@@ -512,9 +518,19 @@ def extract_pair_sent(edu_info1, edu_info2):
     sent_id1 = edu_info1['sent_idx']
     sent_id2 = edu_info2['sent_idx']
     if sent_id1 is not None and sent_id2 is not None:
-        yield ('same_sentence',
-               'same' if sent_id1 == sent_id2 else 'different')
-        yield ('sentence_id_diff', sent_id1 - sent_id2)
+        yield ('same_sentence', (sent_id1 == sent_id2))
+
+        yield ('dist_sent', sent_id1 - sent_id2)
+        # TODO resume here
+        abs_sent_dist = abs(sent_id1 - sent_id2)
+        # yield ('dist_sent_abs', abs_sent_dist)
+        if sent_id1 < sent_id2:  # right attachment (gov < dep)
+            # yield ('dist_sent_right', abs_sent_dist)
+            yield ('sent_right', True)
+        else:
+            # yield ('dist_sent_left', abs_sent_dist)
+            yield ('sent_left', True)
+
         yield ('sentence_id_diff_div3', (sent_id1 - sent_id2) / 3)
 
     # revSentenceID
@@ -598,8 +614,8 @@ def build_pair_feature_extractor():
     feats.extend(PAIR_LENGTH)
     funcs.append(extract_pair_length)
     # 5
-    feats.extend(PAIR_SYNTAX)
-    funcs.append(extract_pair_syntax)
+    # feats.extend(PAIR_SYNTAX)
+    # funcs.append(extract_pair_syntax)
     # 6
     # feats.extend(PAIR_SEMANTICS)  # NotImplemented
     # funcs.append(extract_pair_semantics)
