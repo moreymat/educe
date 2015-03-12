@@ -7,9 +7,6 @@ from __future__ import print_function
 from functools import wraps
 import itertools as it
 
-from educe.learning.keys import KeyGroup, MergedKeyGroup, HeaderType
-
-
 class FeatureExtractionException(Exception):
     """
     Exceptions related to RST trees not looking like we would
@@ -99,154 +96,6 @@ def on_last_bigram(wrapped):
     return inner
 
 
-# ---------------------------------------------------------------------
-# single EDU key groups
-# ---------------------------------------------------------------------
-
-class SingleEduSubgroup(KeyGroup):
-    """
-    Abstract keygroup for subgroups of the merged SingleEduKeys.
-    We use these subgroup classes to help provide modularity, to
-    capture the idea that the bits of code that define a set of
-    related feature vector keys should go with the bits of code
-    that also fill them out
-    """
-    def __init__(self, description, keys):
-        super(SingleEduSubgroup, self).__init__(description, keys)
-
-    def fill(self, current, edu, target=None):
-        """
-        Fill out a vector's features (if the vector is None, then we
-        just fill out this group; but in the case of a merged key
-        group, you may find it desirable to fill out the merged
-        group instead)
-
-        This defaults to _magic_fill if you don't implement it.
-        """
-        self._magic_fill(current, edu, target)
-
-    def _magic_fill(self, current, edu, target=None):
-        """
-        Possible fill implementation that works on the basis of
-        features defined wholly as magic keys
-        """
-        vec = self if target is None else target
-        for key in self.keys:
-            vec[key.name] = key.function(current, edu)
-
-
-class BaseSingleEduKeys(MergedKeyGroup):
-    """Base class for single EDU features.
-
-    Warning: This class should not be used directly. Use derived classes
-    instead.
-    """
-    def __init__(self, feature_groups):
-        desc = "Single EDU features"
-        super(BaseSingleEduKeys, self).__init__(desc, feature_groups)
-
-    def fill(self, current, edu, target=None):
-        """
-        See `SingleEduSubgroup.fill`
-        """
-        vec = self if target is None else target
-        for group in self.groups:
-            group.fill(current, edu, vec)
-
-
-# ---------------------------------------------------------------------
-# EDU pairs
-# ---------------------------------------------------------------------
-
-class PairSubgroup(KeyGroup):
-    """
-    Abstract keygroup for subgroups of the merged PairKeys.
-    We use these subgroup classes to help provide modularity, to
-    capture the idea that the bits of code that define a set of
-    related feature vector keys should go with the bits of code
-    that also fill them out
-    """
-    def __init__(self, description, keys):
-        super(PairSubgroup, self).__init__(description, keys)
-
-    def fill(self, current, edu1, edu2, target=None):
-        """
-        Fill out a vector's features (if the vector is None, then we
-        just fill out this group; but in the case of a merged key
-        group, you may find it desirable to fill out the merged
-        group instead)
-
-        Defaults to _magic_fill if not defined
-        """
-        self._magic_fill(current, edu1, edu2, target)
-
-    def _magic_fill(self, current, edu1, edu2, target=None):
-        """
-        Possible fill implementation that works on the basis of
-        features defined wholly as magic keys
-        """
-        vec = self if target is None else target
-        for key in self.keys:
-            vec[key.name] = key.function(current, edu1, edu2)
-
-
-class BasePairKeys(MergedKeyGroup):
-    """Base class for EDU pair features.
-
-    Parameters
-    ----------
-
-    sf_cache :  dict(EDU, SingleEduKeys), optional (default=None)
-        Should only be None if you're just using this to generate help text.
-    """
-
-    def __init__(self, pair_feature_groups, sf_cache=None):
-        self.sf_cache = sf_cache
-
-        if sf_cache is None:
-            self.edu1 = self.init_single_features()
-            self.edu2 = self.init_single_features()
-        else:
-            self.edu1 = None  # will be filled out later
-            self.edu2 = None  # from the feature cache
-
-        desc = "pair features"
-        super(BasePairKeys, self).__init__(desc, pair_feature_groups)
-
-    def init_single_features(self):
-        """Init features defined on single EDUs"""
-        raise NotImplementedError()
-
-    def csv_headers(self, htype=False):
-        if htype in [HeaderType.OLD_CSV, HeaderType.NAME]:
-            return (super(BasePairKeys, self).csv_headers(htype) +
-                    [h + "_EDU1" for h in self.edu1.csv_headers(htype)] +
-                    [h + "_EDU2" for h in self.edu2.csv_headers(htype)])
-        else:
-            return (super(BasePairKeys, self).csv_headers(htype) +
-                    self.edu1.csv_headers(htype) +
-                    self.edu2.csv_headers(htype))
-
-    def csv_values(self):
-        return (super(BasePairKeys, self).csv_values() +
-                self.edu1.csv_values() +
-                self.edu2.csv_values())
-
-    def help_text(self):
-        lines = [super(BasePairKeys, self).help_text(),
-                 "",
-                 self.edu1.help_text()]
-        return "\n".join(lines)
-
-    def fill(self, current, edu1, edu2, target=None):
-        "See `PairSubgroup`"
-        vec = self if target is None else target
-        vec.edu1 = self.sf_cache[edu1]
-        vec.edu2 = self.sf_cache[edu2]
-        for group in self.groups:
-            group.fill(current, edu1, edu2, vec)
-
-
 # tree utils
 def lowest_common_parent(treepositions):
     """Find tree position of the lowest common parent of a list of nodes.
@@ -272,10 +121,17 @@ def lowest_common_parent(treepositions):
 # end of tree utils
 
 
-def relative_indices(group_indices, reverse=False):
+def relative_indices(group_indices, reverse=False, valna=None):
     """Generate a list of relative indices inside each group.
+    Missing (None) values are handled specifically: each missing
+    value is mapped to `valna`.
 
-    Each None value triggers a new group.
+    Parameters
+    ----------
+    reverse: boolean, optional
+        If True, compute indices relative to the end of each group.
+    valna: int or None, optional
+        Relative index for missing values.
     """
     # TODO rewrite using np.ediff1d, np.where and the like
 
@@ -288,7 +144,7 @@ def relative_indices(group_indices, reverse=False):
     result = []
     for group_idx, dup_values in groupby(group_indices):
         if group_idx is None:
-            rel_indices = (0 for dup_value in dup_values)
+            rel_indices = (valna for dup_value in dup_values)
         else:
             rel_indices = (rel_idx for rel_idx, dv in enumerate(dup_values))
         result.extend(rel_indices)
@@ -300,7 +156,14 @@ def relative_indices(group_indices, reverse=False):
 
 
 class DocumentPlusPreprocessor(object):
-    """Preprocessor for feature extraction on a DocumentPlus"""
+    """Preprocessor for feature extraction on a DocumentPlus
+
+    This pre-processor currently does not explicitly impute missing values,
+    but it probably should eventually.
+    As the ultimate output is features in a sparse format, the current
+    strategy amounts to imputing missing values as 0, which is most
+    certainly not optimal.
+    """
 
     def __init__(self, token_filter=None):
         """
@@ -315,6 +178,8 @@ class DocumentPlusPreprocessor(object):
         """Preprocess a document and output basic features for each EDU.
 
         Return a dict(EDU, (dict(basic_feat_name, basic_feat_val)))
+
+        TODO explicitly impute missing values, e.g. for (rev_)idxes_in_*
         """
         token_filter = self.token_filter
 

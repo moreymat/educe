@@ -12,10 +12,18 @@ educe.learning.csv module
     :undoc-members:
     :show-inheritance:
 
-educe.learning.csv_format module
---------------------------------
+educe.learning.edu_input_format module
+--------------------------------------
 
-.. automodule:: educe.learning.csv_format
+.. automodule:: educe.learning.edu_input_format
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+educe.learning.keygroup_vectorizer module
+-----------------------------------------
+
+.. automodule:: educe.learning.keygroup_vectorizer
     :members:
     :undoc-members:
     :show-inheritance:
@@ -28,10 +36,10 @@ educe.learning.keys module
     :undoc-members:
     :show-inheritance:
 
-educe.learning.orange_format module
------------------------------------
+educe.learning.svmlight_format module
+-------------------------------------
 
-.. automodule:: educe.learning.orange_format
+.. automodule:: educe.learning.svmlight_format
     :members:
     :undoc-members:
     :show-inheritance:
@@ -40,6 +48,14 @@ educe.learning.util module
 --------------------------
 
 .. automodule:: educe.learning.util
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+educe.learning.vocabulary_format module
+---------------------------------------
+
+.. automodule:: educe.learning.vocabulary_format
     :members:
     :undoc-members:
     :show-inheritance:

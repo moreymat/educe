@@ -1,4 +1,5 @@
-# pylint: disable=R0904, C0103
+# pylint: disable=invalid-name
+# pylint: disable=too-few-public-methods
 """
 Feature extraction library functions for STAC corpora.
 The feature extraction script (rel-info) is a lightweight frontend
@@ -23,9 +24,7 @@ from educe.annotation import Span
 from educe.external.parser import\
     SearchableTree,\
     ConstituencyTree
-from educe.learning.keys import\
-    HeaderType,\
-    MagicKey, Key, KeyGroup, MergedKeyGroup, ClassKeyGroup
+from educe.learning.keys import (MagicKey, Key, KeyGroup, MergedKeyGroup)
 from educe.stac import postag, corenlp
 from educe.stac.annotation import speaker, addressees
 from educe.learning.csv import tune_for_csv
@@ -40,7 +39,8 @@ import educe.util
 
 from ..util.context import Context, enclosed, edus_in_span
 from ..annotation import turn_id
-from ..lexicon.wordclass import LexEntry, Lexicon
+from ..lexicon.wordclass import Lexicon
+from ..document_plus import (Dialogue, EDU)
 
 
 class CorpusConsistencyException(Exception):
@@ -125,6 +125,20 @@ INQUIRER_CLASSES = ['Positiv',
                     'Tool',    # related to Catan resources?
                     'Region',  # related to Catan game?
                     'Route']   # related to Catan game
+
+# ---------------------------------------------------------------------
+# preprocessing
+# ---------------------------------------------------------------------
+
+def strip_cdus(corpus):
+    """
+    For all documents in a corpus, remove any CDUs and relink the
+    document accordingly.  This mutates the corpus
+    """
+    for key in corpus:
+        # replace all CDUs in links with their recursive heads
+        graph = stac_gr.Graph.from_doc(corpus, key)
+        graph.strip_cdus(sloppy=True)
 
 # ---------------------------------------------------------------------
 # relation queries
@@ -286,23 +300,6 @@ def subject_lemmas(span, trees):
     return [tree.label().features["lemma"] for tree in subtrees]
 
 
-def attachments(relations, du1, du2):
-    """
-    Return any relations between the two discourse units
-    """
-    def connects(rel, id1, id2):
-        "is a rel between the annotations with the two ids"
-        return rel.span.t1 == id1 and rel.span.t2 == id2
-
-    def is_match(rel):
-        "is a rel between the two discourse units"
-        id1 = du1.local_id()
-        id2 = du2.local_id()
-        return connects(rel, id1, id2)
-
-    return list(filter(is_match, relations))
-
-
 def map_topdown(good, prunable, trees):
     """
     Do topdown search on all these trees, concatenate results.
@@ -333,17 +330,15 @@ def enclosed_trees(span, trees):
 # The comments on these named tuples can be docstrings in Python3,
 # or we can wrap the class, but eh...
 
+# feature extraction environment
+DocEnv = namedtuple("DocEnv", "inputs current sf_cache")
+
 # Global resources and settings used to extract feature vectors
 FeatureInput = namedtuple('FeatureInput',
                           ['corpus', 'postags', 'parses',
                            'lexicons', 'pdtb_lex',
                            'verbnet_entries',
-                           'inquirer_lex',
-                           'ignore_cdus', 'debug', 'experimental'])
-
-# Overlaps with FeatureInput a bit; if this keeps up we may merge
-# them somehow
-Resources = namedtuple('Resources', "lexicons pdtb_lex")
+                           'inquirer_lex'])
 
 # A document and relevant contextual information
 DocumentPlus = namedtuple('DocumentPlus',
@@ -416,20 +411,8 @@ def clean_dialogue_act(act):
     pref = "FIXME:"
     # pylint: enable=fixme
     act2 = act[len(pref):] if act.startswith(pref) else act
-    return "Other" if act2 == "Strategic_comment" else act2
-
-
-def friendly_dialogue_id(k, span):
-    """
-    Dialogue identifier which may be easier to understand when debugging
-    the feature vector (based on its text span).
-
-    The regular timestamp based identifiers look too much like each other.
-    """
-    bname = os.path.basename(educe.stac.id_to_path(k))
-    start = span.char_start
-    end = span.char_end
-    return '%s_%04d_%04d' % (bname, start, end)
+    return "Other" if act2 in ["Strategic_comment",
+                               "Preference"] else act2
 
 
 # ---------------------------------------------------------------------
@@ -450,12 +433,6 @@ def feat_start(_, edu):
 def feat_end(_, edu):
     "text span end"
     return edu.text_span().char_end
-
-
-@type_text
-def feat_text(current, edu):
-    "EDU text [debug only]"
-    return current.doc.text(edu.text_span())
 
 
 @context_feature
@@ -643,29 +620,12 @@ def speakers_first_turn_in_dialogue(context, _):
 # ---------------------------------------------------------------------
 
 
-def feat_dialogue(current, edu1, _):
-    "dialogue that contains both EDUs"
-    ctx1 = current.contexts[edu1]
-    dia_span = ctx1.dialogue.text_span()
-    return friendly_dialogue_id(current.key, dia_span)
-
-
 #pylint: disable=unused-argument
 def feat_annotator(current, edu1, edu2):
     "annotator for the subdoc"
     anno = current.doc.origin.annotator
     return "none" if anno is None or anno is "" else anno
 #pylint: enable=unused-argument
-
-
-@type_text
-def feat_pair_text(current, edu1, edu2):
-    "text from DU1 start to DU2 end [debug only]"
-    doc = current.doc
-    edu1_span = edu1.text_span()
-    edu2_span = edu2.text_span()
-    big_span = edu1_span.merge(edu2_span)
-    return doc.text(big_span)
 
 
 @tuple_feature(underscore)  # decorator does the pairing boilerplate
@@ -763,21 +723,6 @@ class LexKeyGroup(KeyGroup):
         """
         return "lex_" + self.key
 
-    def help_text(self):
-        """
-        CSV field names for each entry/class in the lexicon
-        """
-        header_name = (self.key_prefix() + "_...").ljust(KeyGroup.NAME_WIDTH)
-        header = "[D] %s %s" % (header_name, "")
-        lines = [header]
-        for cname, lclass in self.lexicon.entries.items():
-            keyname = cname
-            if self.has_subclasses:
-                subkeys = ", ".join(lclass.just_subclasses())
-                keyname += "_{%s}" % subkeys
-            lines.append("       %s" % keyname.ljust(KeyGroup.NAME_WIDTH))
-        return "\n".join(lines)
-
     def fill(self, current, edu, target=None):
         """
         See `SingleEduSubgroup`
@@ -820,18 +765,6 @@ class PdtbLexKeyGroup(KeyGroup):
         "All feature keys in this lexicon should start with this string"
         return "pdtb"
 
-    def help_text(self):
-        """
-        CSV field names for each entry/class in the lexicon
-        """
-        header_name = (self.key_prefix() + "_...").ljust(KeyGroup.NAME_WIDTH)
-        header_help = "if has lexical marker for the given class"
-        header = "[D] %s %s" % (header_name, header_help)
-        lines = [header]
-        for rel in self.lexicon:
-            lines.append("       %s" % rel.ljust(KeyGroup.NAME_WIDTH))
-        return "\n".join(lines)
-
     def fill(self, current, edu, target=None):
         "See `SingleEduSubgroup`"
         vec = self if target is None else target
@@ -866,19 +799,6 @@ class VerbNetLexKeyGroup(KeyGroup):
     def key_prefix(cls):
         "All feature keys in this lexicon should start with this string"
         return "verbnet"
-
-    def help_text(self):
-        """
-        CSV field names for each entry/class in the lexicon
-        """
-        header_name = (self.key_prefix() + "_...").ljust(KeyGroup.NAME_WIDTH)
-        header_help = "if has lemma in the given class"
-        header = "[D] %s %s" % (header_name, header_help)
-        lines = [header]
-        for ventry in self.ventries:
-            lines.append("       %s" %
-                         ventry.classname.ljust(KeyGroup.NAME_WIDTH))
-        return "\n".join(lines)
 
     def fill(self, current, edu, target=None):
         "See `SingleEduSubgroup`"
@@ -915,19 +835,6 @@ class InquirerLexKeyGroup(KeyGroup):
         "All feature keys in this lexicon should start with this string"
         return "inq"
 
-    def help_text(self):
-        """
-        CSV field names for each entry/class in the lexicon
-        """
-        header_name = (self.key_prefix() + "_...").ljust(KeyGroup.NAME_WIDTH)
-        header_help = "if has token in the given class"
-        header = "[D] %s %s" % (header_name, header_help)
-        lines = [header]
-        for entry in self.lexicon:
-            lines.append("       %s" %
-                         entry.ljust(KeyGroup.NAME_WIDTH))
-        return "\n".join(lines)
-
     def fill(self, current, edu, target=None):
         "See `SingleEduSubgroup`"
 
@@ -952,12 +859,6 @@ class MergedLexKeyGroup(MergedKeyGroup):
              VerbNetLexKeyGroup(inputs.verbnet_entries)]
         description = "lexical features"
         super(MergedLexKeyGroup, self).__init__(description, groups)
-
-    def help_text(self):
-        lines = [self.description,
-                 "-" * len(self.description)] +\
-            [g.help_text() for g in self.groups]
-        return "\n".join(lines)
 
     def fill(self, current, edu, target=None):
         "See `SingleEduSubgroup`"
@@ -1000,29 +901,6 @@ class SingleEduSubgroup(KeyGroup):
         vec = self if target is None else target
         for key in self.keys:
             vec[key.name] = key.function(current, edu)
-
-
-class SingleEduSubgroup_Meta(SingleEduSubgroup):
-    """
-    Basic EDU-identification features
-    """
-    def __init__(self):
-        desc = self.__doc__.strip()
-        keys =\
-            [MagicKey.meta_fn(feat_id),
-             MagicKey.meta_fn(feat_start),
-             MagicKey.meta_fn(feat_end)]
-        super(SingleEduSubgroup_Meta, self).__init__(desc, keys)
-
-
-class SingleEduSubgroup_Debug(SingleEduSubgroup):
-    """
-    debug features
-    """
-    def __init__(self):
-        desc = self.__doc__.strip()
-        keys = [MagicKey.meta_fn(feat_text)]
-        super(SingleEduSubgroup_Debug, self).__init__(desc, keys)
 
 
 class SingleEduSubgroup_Token(SingleEduSubgroup):
@@ -1095,14 +973,11 @@ class SingleEduKeys(MergedKeyGroup):
     Features for a single EDU
     """
     def __init__(self, inputs):
-        groups = [SingleEduSubgroup_Meta(),
-                  SingleEduSubgroup_Token(),
+        groups = [SingleEduSubgroup_Token(),
                   SingleEduSubgroup_Chat(),
                   SingleEduSubgroup_Punct(),
                   SingleEduSubgroup_Parser(),
                   MergedLexKeyGroup(inputs)]
-        if inputs.debug:
-            groups.append(SingleEduSubgroup_Debug())
         super(SingleEduKeys, self).__init__("single EDU features",
                                             groups)
 
@@ -1113,45 +988,6 @@ class SingleEduKeys(MergedKeyGroup):
         vec = self if target is None else target
         for group in self.groups:
             group.fill(current, edu, vec)
-
-# ---------------------------------------------------------------------
-# EDU singletons (standalone mode)
-# ---------------------------------------------------------------------
-
-
-class SingleEduSubgroup_Standalone(SingleEduSubgroup):
-    """
-    additional keys for single EDU in standalone mode
-    """
-    def __init__(self):
-        desc = self.__doc__.strip()
-        keys = [Key.meta("dialogue", "dialogue that contains both EDUs")]
-        super(SingleEduSubgroup_Standalone, self).__init__(desc, keys)
-
-    def fill(self, current, edu, target=None):
-        vec = self if target is None else target
-        dia_span = current.contexts[edu].dialogue.text_span()
-        vec["dialogue"] = friendly_dialogue_id(current.key, dia_span)
-
-
-class SingleEduKeysForSingleExtraction(MergedKeyGroup):
-    """
-    Features for a single EDU, not used within EDU pair extraction,
-    but just in standalone mode for dialogue act annotations
-    """
-    def __init__(self, inputs):
-        groups = [SingleEduSubgroup_Standalone(),
-                  SingleEduKeys(inputs)]
-        super(SingleEduKeysForSingleExtraction,
-              self).__init__("standalone single EDUs", groups)
-
-    def fill(self, current, edu, target=None):
-        "See `SingleEduSubgroup`"
-
-        vec = self if target is None else target
-        for group in self.groups:
-            group.fill(current, edu, vec)
-
 
 # ---------------------------------------------------------------------
 # EDU pairs
@@ -1239,48 +1075,14 @@ class PairSubgroup_Gap(PairSubgroup):
             vec[key.name] = key.function(current, gap, edu1, edu2)
 
 
-class PairSubgroup_Debug(PairSubgroup):
-    "debug features"
-
-    def __init__(self):
-        desc = self.__doc__.strip()
-        keys = [MagicKey.meta_fn(feat_pair_text)]
-        super(PairSubgroup_Debug, self).__init__(desc, keys)
-
-    def fill(self, current, edu1, edu2, target=None):
-        vec = self if target is None else target
-        for key in self.keys:
-            vec[key.name] = key.function(current, edu1, edu2)
-
-
-class PairSubGroup_Core(PairSubgroup):
-    "core features"
-
-    def __init__(self):
-        desc = self.__doc__.strip()
-        keys =\
-            [MagicKey.meta_fn(feat_dialogue),
-             MagicKey.meta_fn(feat_annotator)]
-        super(PairSubGroup_Core, self).__init__(desc, keys)
-
-    def fill(self, current, edu1, edu2, target=None):
-        vec = self if target is None else target
-        for key in self.keys:
-            vec[key.name] = key.function(current, edu1, edu2)
-
-
 class PairKeys(MergedKeyGroup):
     """
     Features for pairs of EDUs
     """
     def __init__(self, inputs, sf_cache=None):
         self.sf_cache = sf_cache
-        groups = [PairSubGroup_Core(),
-                  PairSubgroup_Gap(sf_cache),
+        groups = [PairSubgroup_Gap(sf_cache),
                   PairSubgroup_Tuple(inputs, sf_cache)]
-        if inputs.debug:
-            groups.append(PairSubgroup_Debug())
-
         if sf_cache is None:
             self.edu1 = SingleEduKeys(inputs)
             self.edu2 = SingleEduKeys(inputs)
@@ -1291,27 +1093,13 @@ class PairKeys(MergedKeyGroup):
         super(PairKeys, self).__init__("pair features",
                                        groups)
 
-    def csv_headers(self, htype):
-        if htype in [HeaderType.OLD_CSV, HeaderType.NAME]:
-            return super(PairKeys, self).csv_headers(htype) +\
-                    [h + "_DU1" for h in self.edu1.csv_headers(htype)] +\
-                    [h + "_DU2" for h in self.edu2.csv_headers(htype)]
-        else:
-            return super(PairKeys, self).csv_headers(htype) +\
-                    self.edu1.csv_headers(htype) +\
-                    self.edu2.csv_headers(htype)
-
-
-    def csv_values(self):
-        return super(PairKeys, self).csv_values() +\
-            self.edu1.csv_values() +\
-            self.edu2.csv_values()
-
-    def help_text(self):
-        lines = [super(PairKeys, self).help_text(),
-                 "",
-                 self.edu1.help_text()]
-        return "\n".join(lines)
+    def one_hot_values_gen(self, suffix=''):
+        for pair in super(PairKeys, self).one_hot_values_gen():
+            yield pair
+        for pair in self.edu1.one_hot_values_gen(suffix='_DU1'):
+            yield pair
+        for pair in self.edu2.one_hot_values_gen(suffix='_DU2'):
+            yield pair
 
     def fill(self, current, edu1, edu2, target=None):
         "See `PairSubgroup`"
@@ -1357,23 +1145,14 @@ class FeatureCache(dict):
 # extraction generators
 # ---------------------------------------------------------------------
 
-# feature extraction environment
-DocEnv = namedtuple("DocEnv", "inputs current sf_cache live")
 
-
-def _get_unit_key(inputs, key, live):
+def _get_unit_key(inputs, key):
     """
     Given the key for what is presumably a discourse level or
     unannotated document, return the key for for its unit-level
     equivalent.
-
-    In live/parsing mode, we assume we are working with
-    unannotated data; so we relax the match a bit by
-    ignoring the author
-
-    May be None if there is no such key equivalent
     """
-    if live:
+    if key.annotator is None:
         twins = [k for k in inputs.corpus if
                  k.doc == key.doc and
                  k.subdoc == key.subdoc and
@@ -1385,18 +1164,12 @@ def _get_unit_key(inputs, key, live):
         return twin if twin in inputs.corpus else None
 
 
-def mk_env(inputs, people, key, live):
+def mk_env(inputs, people, key):
     """
     Pre-process and bundle up a representation of the current document
     """
     doc = inputs.corpus[key]
-    if not inputs.ignore_cdus:
-        # replace all CDUs in links with their recursive heads
-        graph = stac_gr.Graph.from_doc(inputs.corpus, key)
-        # pylint: disable=maybe-no-member
-        graph.strip_cdus(sloppy=True)
-        # pylint: enable=maybe-no-member
-    unit_key = _get_unit_key(inputs, key, live)
+    unit_key = _get_unit_key(inputs, key)
     current =\
         DocumentPlus(key=key,
                      doc=doc,
@@ -1407,8 +1180,7 @@ def mk_env(inputs, people, key, live):
 
     return DocEnv(inputs=inputs,
                   current=current,
-                  sf_cache=FeatureCache(inputs, current),
-                  live=live)
+                  sf_cache=FeatureCache(inputs, current))
 
 
 def get_players(inputs):
@@ -1421,120 +1193,134 @@ def get_players(inputs):
             for x in kdocs}
 
 
+def relation_dict(doc, quiet=False):
+    """
+    Return the relations instances from a document in the
+    form of an id pair to label dictionary
+
+    If there is more than one relation between a pair of
+    EDUs we pick one of them arbitrarily and ignore the
+    other
+    """
+    relations = {}
+    for rel in doc.relations:
+        pair = rel.source.identifier(), rel.target.identifier()
+        if pair not in relations:
+            relations[pair] = rel.type
+        elif not quiet:
+            print(('Ignoring {type1} relation instance ({edu1} -> {edu2}); '
+                   'another of type {type2} already exists'
+                   '').format(type1=rel.type,
+                              edu1=pair[0],
+                              edu2=pair[1],
+                              type2=relations[pair]),
+                  file=sys.stderr)
+    return relations
+
+
 def _extract_pair(env, edu1, edu2):
     """
     Extraction for a given pair of EDUs
     (directional, so would have to be called twice)
     """
-    doc = env.current.doc
     vec = PairKeys(env.inputs, sf_cache=env.sf_cache)
     vec.fill(env.current, edu1, edu2)
-    rels = attachments(doc.relations, edu1, edu2)
-    if env.live:
-        return vec, vec
-    else:
-        rels_vec = ClassKeyGroup(vec)
-        pairs_vec = ClassKeyGroup(vec)
-        if len(rels) > 1:
-            print('More than one relation between %s and %s' %
-                  (edu1, edu2),
-                  file=sys.stderr)
-        rels_vec.set_class(rels[0].type if rels else 'UNRELATED')
-        pairs_vec.set_class(bool(rels))
-        return pairs_vec, rels_vec
+    return vec
 
 
-def _extract_doc_pairs(env, window):
+def _id_pair(pair):
+    "pair of ids for pair of edus"
+    edu1, edu2 = pair
+    return edu1.identifier(), edu2.identifier()
+
+
+def _mk_high_level_dialogues(current):
+    """:rtype: iterable(:pyclass:`educe.stac.document_plus.Dialogue`)
+    """
+    doc = current.doc
+    annos = sorted([x for x in doc.units if educe.stac.is_edu(x)],
+                   key=lambda x: x.span)
+    edus = []
+    dialogues = {} # EDU -> glozz anno
+    edus_in_dialogues = defaultdict(list)
+    for anno in annos:
+        unit_anno = None if current.unitdoc is None\
+            else educe.stac.twin_from(current.unitdoc, anno)
+        edu = EDU(doc,
+                  current.contexts[anno],
+                  anno,
+                  unit_anno)
+        edus.append(edu)
+        dia = current.contexts[anno].dialogue
+        dialogues[edu] = dia
+        edus_in_dialogues[dia].append(edu)
+
+    relations = relation_dict(doc)
+
+    for dia in sorted(edus_in_dialogues, key=lambda x: x.span):
+        d_edus = edus_in_dialogues[dia]
+        d_relations = {}
+        for pair in itr.product(d_edus, d_edus):
+            rel = relations.get(_id_pair(pair))
+            if rel is not None:
+                d_relations[pair] = rel
+        yield Dialogue(dia, d_edus, d_relations)
+
+
+def mk_envs(inputs, stage):
+    """
+    Generate an environment for each document in the corpus
+    within the given stage.
+
+    The environment pools together all the information we
+    have on a single document
+    """
+    people = get_players(inputs)
+    for key in inputs.corpus:
+        if key.stage != stage:
+            continue
+        yield mk_env(inputs, people, key)
+
+
+def mk_high_level_dialogues(inputs, stage):
+    """
+    Generate all relevant EDU pairs for a document
+    (generator)
+    """
+    for env in mk_envs(inputs, stage):
+        for dia in _mk_high_level_dialogues(env.current):
+            yield dia
+
+
+def extract_pair_features(inputs, stage):
     """
     Extraction for all relevant pairs in a document
     (generator)
     """
-    doc = env.current.doc
-    edus = sorted([x for x in doc.units if educe.stac.is_edu(x)],
-                  key=lambda x: x.span)
-    for edu1 in edus:
-        for edu2 in itr.dropwhile(lambda x: x.span <= edu1.span, edus):
-            ctx1 = env.current.contexts[edu1]
-            ctx2 = env.current.contexts[edu2]
-            if ctx1.dialogue != ctx2.dialogue:
-                break  # we can break because the EDUs are sorted
-                       # so once we're out of dialogue, anything
-                       # that follows will also be so
-            vecs = _extract_pair(env, edu1, edu2)
-            # pylint: disable=no-member
-            qvec = vecs[0] if env.live else vecs[0].group
-            # pylint: enable=no-member
-            if window >= 0 and qvec["num_edus_between"] > window:
-                break  # move on to next edu1
-            # both directions
-            yield vecs
-            yield _extract_pair(env, edu2, edu1)
-        # we shouldn't ever need edu1 again; expiring this means
-        # the cache uses constantish memory
-        env.sf_cache.expire(edu1)
-
-
-def extract_pair_features(inputs, window,
-                          live=False):
-    """
-    Return a pair of dictionaries, one for attachments
-    and one for relations
-
-    :param stage: only extract from inputs in the given stage
-                  (None to avoid limiting).  For live parsing
-                  mode, you likely want 'unannotated'
-    """
-    stage = 'unannotated' if live else 'discourse'
-    people = get_players(inputs)
-    for k in inputs.corpus:
-        if stage is not None and k.stage != stage:
-            continue
-        env = mk_env(inputs, people, k, live)
-        for res in _extract_doc_pairs(env, window):
-            yield res
+    for env in mk_envs(inputs, stage):
+        for dia in _mk_high_level_dialogues(env.current):
+            for edu1, edu2 in dia.edu_pairs():
+                yield _extract_pair(env, edu1._anno, edu2._anno)
 
 # ---------------------------------------------------------------------
 # extraction generators (single edu)
 # ---------------------------------------------------------------------
 
 
-def _extract_single(env, edu):
-    """
-    Extraction for a single EDU
-    """
-    vec = SingleEduKeysForSingleExtraction(env.inputs)
-    vec.fill(env.current, edu)
-    if env.live:
-        return vec
-    else:
-        act = real_dialogue_act(edu)
-        cl_vec = ClassKeyGroup(vec)
-        cl_vec.set_class(clean_dialogue_act(act))
-        return cl_vec
-
-
-def _extract_doc_singles(env):
-    """
-    Extraction for all relevant single EDUs in a document
-    (generator)
-    """
-    doc = env.current.doc
-    edus = [unit for unit in doc.units if educe.stac.is_edu(unit)]
-    return (_extract_single(env, edu) for edu in edus)
-
-
-def extract_single_features(inputs, live=False):
+def extract_single_features(inputs, stage):
     """
     Return a dictionary for each EDU
     """
-    people = get_players(inputs)
-    for k in inputs.corpus:
-        if k.stage != 'units':
+    for env in mk_envs(inputs, stage):
+        doc = env.current.doc
+        # skip any documents which are not yet annotated
+        if env.current.unitdoc is None:
             continue
-        env = mk_env(inputs, people, k, live)
-        for res in _extract_doc_singles(env):
-            yield res
-
+        edus = [unit for unit in doc.units if educe.stac.is_edu(unit)]
+        for edu in edus:
+            vec = SingleEduKeys(env.inputs)
+            vec.fill(env.current, edu)
+            yield vec
 
 # ---------------------------------------------------------------------
 # input readers
@@ -1566,10 +1352,60 @@ def _read_inquirer_lexicon(args):
     return words
 
 
-def _read_resources(args, corpus, postags, parses):
+def mk_is_interesting(args, single):
     """
-    Read all external resources
+    Return a function that filters corpus keys to pick out the ones
+    we specified on the command line
+
+    We have two cases here: for pair extraction, we just want to
+    grab the units and if possible the discourse stage. In live mode,
+    there won't be a discourse stage, but that's fine because we can
+    just fall back on units.
+
+    For single extraction (dialogue acts), we'll also want to grab the
+    units stage and fall back to unannotated when in live mode. This
+    is made a bit trickier by the fact that unannotated does not have
+    an annotator, so we have to accomodate that.
+
+    Phew.
+
+    It's a bit specific to feature extraction in that here we are
+    trying
+
+    :type single: bool
     """
+    if single:
+        # ignore annotator filter for unannotated documents
+        args1 = copy.copy(args)
+        args1.annotator = None
+        is_interesting1 =\
+            educe.util.mk_is_interesting(args1,
+                                         preselected={'stage': ['unannotated']})
+        # but pay attention to it for units
+        args2 = args
+        is_interesting2 =\
+            educe.util.mk_is_interesting(args2,
+                                         preselected={'stage': ['units']})
+        return lambda x: is_interesting1(x) or is_interesting2(x)
+    else:
+        preselected = {"stage": ["discourse", "units"]}
+        return educe.util.mk_is_interesting(args, preselected=preselected)
+
+
+def read_corpus_inputs(args):
+    """
+    Read and filter the part of the corpus we want features for
+    """
+    reader = educe.stac.Reader(args.corpus)
+    anno_files = reader.filter(reader.files(),
+                               mk_is_interesting(args, args.single))
+    corpus = reader.slurp(anno_files, verbose=True)
+
+    if not args.ignore_cdus:
+        strip_cdus(corpus)
+    postags = postag.read_tags(corpus, args.corpus)
+    parses = corenlp.read_results(corpus, args.corpus)
+
     for lex in LEXICONS:
         lex.read(args.resources)
     pdtb_lex = read_pdtb_lexicon(args)
@@ -1577,38 +1413,11 @@ def _read_resources(args, corpus, postags, parses):
 
     verbnet_entries = [VerbNetEntry(x, frozenset(vnet.lemmas(x)))
                        for x in VERBNET_CLASSES]
-    return FeatureInput(corpus, postags, parses,
-                        LEXICONS, pdtb_lex, verbnet_entries, inq_lex,
-                        args.ignore_cdus, args.debug, args.experimental)
 
-
-def read_list_inputs(args):
-    """
-    Read just the resources and flags needed to do a feature listing
-    """
-    args.debug = True
-    args.experimental = True
-    args.ignore_cdus = None
-    return _read_resources(args, None, None, None)
-
-
-def read_common_inputs(args, corpus):
-    """
-    Read the data that is common to live/corpus mode.
-    """
-    postags = postag.read_tags(corpus, args.corpus)
-    parses = corenlp.read_results(corpus, args.corpus)
-    return _read_resources(args, corpus, postags, parses)
-
-
-def read_corpus_inputs(args, stage=None):
-    """
-    Read and filter the part of the corpus we want features for
-    """
-    preselected = {"stage": stage or ["discourse", "units"]}
-    is_interesting = educe.util.mk_is_interesting(args,
-                                                  preselected=preselected)
-    reader = educe.stac.Reader(args.corpus)
-    anno_files = reader.filter(reader.files(), is_interesting)
-    corpus = reader.slurp(anno_files, verbose=True)
-    return read_common_inputs(args, corpus)
+    return FeatureInput(corpus=corpus,
+                        postags=postags,
+                        parses=parses,
+                        lexicons=LEXICONS,
+                        pdtb_lex=pdtb_lex,
+                        verbnet_entries=verbnet_entries,
+                        inquirer_lex=inq_lex)
