@@ -243,7 +243,7 @@ def _open_plus(doc_key, dis_filename, txt_filename, rel_conv=None,
         docp = syn_parser.parse(docp)
         # align with EDUs
         docp = docp.align_with_trees()
-        docp = docp.align_with_tokens()
+        docp = docp.align_with_tokens()  # TODO move just after tokenize()
     # dummy, fallback tokenization if there is not PTB gold or silver
     docp = docp.align_with_raw_words()
 

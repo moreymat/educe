@@ -4,6 +4,7 @@
 
 from __future__ import print_function
 
+from collections import deque
 import re
 import itertools
 
@@ -92,7 +93,7 @@ def extract_single_pos(edu_info):
 
 SINGLE_LENGTH = [
     ('num_tokens', Substance.CONTINUOUS),
-    ('num_tokens_div5', Substance.CONTINUOUS)
+    ('num_tokens_div5', Substance.CONTINUOUS),
 ]
 
 
@@ -168,148 +169,70 @@ def extract_single_para(edu_info):
 # syntactic features
 
 # helpers
-def syn_subtree_spanning_edu(edu_info):
-    """Syntactic subtree that spans the EDU
+def find_edu_head(tree, hwords, wanted):
+    """Find the word with highest occurrence in the lexicalized tree
 
-    Returns (tree, treepos) where treepos is the position of the subtree
+    Return a pair of treepositions (head node, head word), or None if
+    no occurrence of any word in wanted was found.
     """
-    try:
-        ptrees = edu_info['ptrees']
-    except KeyError:
-        return None
+    # prune wanted to prevent punctuation from becoming the head of an EDU
+    nohead_tags = set(['.', ',', "''", "``"])
+    wanted = set([tp for tp in wanted
+                  if tree[tp].tag not in nohead_tags])
 
-    edu = edu_info['edu']
-    # raise warning if this EDU belongs to > 1 PTB tree
-    if len(ptrees) > 1:
-        print('W: more than 1 tree')
-        return None
-    elif not ptrees:
-        print('W: no tree')
-        return None
-
-    # now we can safely assume there is one PTB tree
-    ptree = ptrees[0]
-    # get the indices of the leaves of the tree that are in this EDU
-    leaf_ids = [idx for idx, leaf in enumerate(ptree.leaves())
-                if leaf.overlaps(edu)]
-    # use indices to get the tree position of their lowest common parent
-    idx_start = leaf_ids[0]
-    idx_end = leaf_ids[-1] + 1
-    assert leaf_ids == range(leaf_ids[0], leaf_ids[-1]+1)  # sanity check
-    treepos_lcp = ptree.treeposition_spanning_leaves(idx_start, idx_end)
-
-    return (ptree, treepos_lcp)
-
-
-def syn_label_spanning_edu(edu_info):
-    """Get the syntactic label of the lowest node spanning the EDU"""
-    try:
-        ptree, treepos_lcp = syn_subtree_spanning_edu(edu_info)
-    except TypeError:
-        # if call returns None
-        return None
-
-    spanning_subtree = ptree[treepos_lcp]
-    if spanning_subtree is None:
-        return None
-
-    if isinstance(spanning_subtree, Tree):
-        spanning_lbl = treenode(spanning_subtree)
-    elif isinstance(spanning_subtree, Token):
-        spanning_lbl = spanning_subtree.tag
-    else:
-        raise ValueError('spanning_subtree is neither a Tree nor a Token')
-
-    return spanning_lbl
-
-
-# helper
-# TODO rewrite
-def get_syntactic_labels(edu_info):
-    "Syntactic labels for this EDU"
-    result = []
-
-    try:
-        ptrees = edu_info['ptrees']
-    except KeyError:
-        return None
-
-    edu = edu_info['edu']
-
-    # raise warning if this EDU belongs to > 1 PTB tree
-    if len(ptrees) > 1:
-        w_msg = 'W: {} belongs to more than one PTB tree'
-        print(w_msg.format(edu))
-        print('EDU text on span {}'.format(edu.text_span()))
-        print('    {}'.format(edu.text()))
-        for ptree in ptrees:
-            print('PTB tree on span {}'.format(ptree.text_span()))
-            print('    ', ' '.join(tok.word for tok in ptree.leaves()))
-        print('')
-        return []
-    elif len(ptrees) == 0:
-        w_msg = 'W: EDU {} does not belong to any PTB tree'
-        print(w_msg.format(edu))
-        return []
-
-    # now we can safely assume there is a unique PTB tree
-    ptree = ptrees[0]
-    # get the indices of the leaves of the tree that are in this EDU
-    leaf_ids = [idx for idx, leaf in enumerate(ptree.leaves())
-                if leaf.overlaps(edu)]
-    # use indices to get the tree position of their lowest common parent
-    idx_start = leaf_ids[0]
-    idx_end = leaf_ids[-1] + 1
-    assert leaf_ids == range(leaf_ids[0], leaf_ids[-1]+1)  # sanity check
-    treepos_lcp = ptree.treeposition_spanning_leaves(idx_start, idx_end)
-
-    # EDU
-    tpos_leaves_edu = ((ptree, [tpos_leaf
-                                for tpos_leaf in ptree.treepositions('leaves')
-                                if ptree[tpos_leaf].overlaps(edu)])
-                       for ptree in ptrees)
-    # for each span of syntactic leaves in this EDU
-    for ptree, leaves in tpos_leaves_edu:
-        tpos_parent = lowest_common_parent(leaves)
-        # CHECKING / RESUME HERE
-        assert tpos_parent == treepos_lcp
-        # end CHECKING
-
-        # for each leaf between leftmost and rightmost, add its ancestors
-        # up to the lowest common parent
-        for leaf in leaves:
-            for i in reversed(range(len(leaf))):
-                tpos_node = leaf[:i]
-                node = ptree[tpos_node]
-                node_lbl = treenode(node)
-                if tpos_node == tpos_parent:
-                    result.append('top_' + node_lbl)
-                    break
-                else:
-                    result.append(node_lbl)
-    return result
-# end rewrite
+    all_treepos = deque([()])  # init with root treepos: ()
+    while all_treepos:
+        cur_treepos = all_treepos.popleft()
+        cur_tree = tree[cur_treepos]
+        cur_hw = hwords[cur_treepos]
+        if cur_hw in wanted:
+            return (cur_treepos, cur_hw)
+        elif isinstance(cur_tree, Tree):
+            c_treeposs = [tuple(list(cur_treepos) + [c_idx])
+                          for c_idx, c in enumerate(tree[cur_treepos])]
+            all_treepos.extend(c_treeposs)
+        else:  # don't try to recurse if the current subtree is a Token
+            pass
+    return None
 
 
 SINGLE_SYNTAX = [
-    ('SYN_label', Substance.DISCRETE),
+    ('SYN_hlabel', Substance.DISCRETE),
+    ('SYN_hword', Substance.DISCRETE),
 #    ('SYN', Substance.BASKET),
 ]
 
 
 def extract_single_syntax(edu_info):
     """syntactic features for the EDU"""
-    # EXPERIMENTAL
-    syn_lbl = syn_label_spanning_edu(edu_info)
-    if syn_lbl is not None:
-        yield ('SYN_label', syn_lbl)
+    try:
+        ptree = edu_info['ptree']
+        pheads = edu_info['pheads']
+    except KeyError:
+        return
 
-    # former features
-    if False:
-        syn_labels = get_syntactic_labels(edu_info)
-        if syn_labels is not None:
-            for syn_label in syn_labels:
-                yield ('SYN', syn_label)
+    edu = edu_info['edu']
+
+    # tree positions (in the syn tree) of the words that are in the EDU
+    tpos_leaves_edu = [tpos_leaf
+                       for tpos_leaf in ptree.treepositions('leaves')
+                       if ptree[tpos_leaf].overlaps(edu)]
+    wanted = set(tpos_leaves_edu)
+    edu_head = find_edu_head(ptree, pheads, wanted)
+    if edu_head is not None:
+        treepos_hn, treepos_hw = edu_head
+        hlabel = ptree[treepos_hn].label()
+        hword = ptree[treepos_hw].word
+
+        if False:
+            # DEBUG
+            print('edu: ', edu.text())
+            print('hlabel: ', hlabel)
+            print('hword: ', hword)
+            print('======')
+
+        yield ('SYN_hlabel', hlabel)
+        yield ('SYN_hword', hword)
 
 
 # TODO: features on semantic similarity
@@ -437,9 +360,19 @@ def extract_pair_doc(edu_info1, edu_info2):
     """Document-level tuple features"""
     edu_idx1 = edu_info1['edu'].num
     edu_idx2 = edu_info2['edu'].num
-    # TODO  rel_dist (no abs), but not now as certain classifiers need val>0
+
+    # TODO relative distance?
+    # maybe not as certain classifiers need positive values
+
+    # absolute distance
     abs_dist = abs(edu_idx1 - edu_idx2)
     yield ('dist_edus_abs', abs_dist)
+
+    # EXPERIMENTAL boolean feature for adjacent EDUs
+    if abs_dist == 1:
+        yield ('adjacent_edus', True)
+
+    # (left- and right-) oriented distances
     if edu_idx1 < edu_idx2:  # right attachment (gov before dep)
         yield ('dist_edus_right', abs_dist)
     else:
@@ -499,6 +432,10 @@ PAIR_SENT = [
 
 def extract_pair_sent(edu_info1, edu_info2):
     """Sentence tuple features"""
+
+    sent_id1 = edu_info1['sent_idx']
+    sent_id2 = edu_info2['sent_idx']
+
     # offset features
     try:
         offset1 = edu_info1['edu_idx_in_sent']
@@ -506,11 +443,12 @@ def extract_pair_sent(edu_info1, edu_info2):
     except KeyError:
         pass
     else:
-        if offset1 is not None and offset2 is not None:
-            yield ('offset_diff', offset1 - offset2)
-            yield ('offset_diff_div3', (offset1 - offset2) / 3)
-            yield ('offset_pair', (offset1, offset2))
-            yield ('offset_div3_pair', (offset1 / 3, offset2 / 3))
+        # offset diff
+        yield ('offset_diff', offset1 - offset2)
+        yield ('offset_diff_div3', (offset1 - offset2) / 3)
+        # offset pair
+        yield ('offset_pair', (offset1, offset2))
+        yield ('offset_div3_pair', (offset1 / 3, offset2 / 3))
 
     # rev_offset features
     try:
@@ -526,8 +464,6 @@ def extract_pair_sent(edu_info1, edu_info2):
             yield ('rev_offset_div3_pair', (rev_offset1 / 3, rev_offset2 / 3))
 
     # sentenceID
-    sent_id1 = edu_info1['sent_idx']
-    sent_id2 = edu_info2['sent_idx']
     if sent_id1 is not None and sent_id2 is not None:
         yield ('same_sentence', (sent_id1 == sent_id2))
 
@@ -553,6 +489,8 @@ def extract_pair_sent(edu_info1, edu_info2):
                (rev_sent_id1 - rev_sent_id2) / 3)
 
 
+# syntax
+
 PAIR_SYNTAX = [
     ('SYN_label_pair', Substance.DISCRETE),
     # relation between spanning nodes in the syntactic tree
@@ -565,38 +503,94 @@ PAIR_SYNTAX = [
 def extract_pair_syntax(edu_info1, edu_info2):
     """syntactic features for the pair of EDUs"""
     try:
-        ptree1, treepos_lcp1 = syn_subtree_spanning_edu(edu_info1)
-        ptree2, treepos_lcp2 = syn_subtree_spanning_edu(edu_info2)
-    except TypeError:
-        # if either call returns None, just leave
+        ptree1 = edu_info1['ptree']
+        pheads1 = edu_info1['pheads']
+
+        ptree2 = edu_info2['ptree']
+        pheads2 = edu_info2['pheads']
+    except KeyError:
         return
 
-    syn_lbl1 = ptree1[treepos_lcp1]
-    syn_lbl2 = ptree2[treepos_lcp2]
+    edu1 = edu_info1['edu']
+    edu2 = edu_info2['edu']
 
-    # EXPERIMENTAL
-    if syn_lbl1 is not None and syn_lbl2 is not None:
-        yield ('SYN_label_pair', (syn_lbl1, syn_lbl2))
+    # generate DS-LST features for intra-sentential
+    if ptree1 == ptree2:
+        ptree = ptree1
+        pheads = pheads1
 
-    # if both EDUs belong to the same sentence
-    if (ptree1 == ptree2):
-        if treepos_lcp1 == treepos_lcp2:
-            yield ('SYN_same_span', True)
-        elif treepos_lcp1[:-1] == treepos_lcp2[:-1]:
-            yield ('SYN_sisters', True)
-        else:
-            for c1, c2 in itertools.izip_longest(treepos_lcp1, treepos_lcp2):
-                if c1 is None:  # c1 is a prefix for c2
-                    # means c2 is dominated by c1
-                    yield ('SYN_1_over_2', True)
-                    break
-                elif c2 is None:  # c2 is a prefix for c1
-                    # means c1 is dominated by c2
-                    yield ('SYN_2_over_1', True)
-                    break
-                elif c1 != c2:  # c1 and c2 differ
-                    # means they are in separate parts of the tree
-                    break
+        # find the head node of EDU1
+        # tree positions (in the syn tree) of the words that are in EDU1
+        tpos_leaves_edu1 = [tpos_leaf
+                            for tpos_leaf in ptree.treepositions('leaves')
+                            if ptree[tpos_leaf].overlaps(edu1)]
+        tpos_words1 = set(tpos_leaves_edu1)
+        edu1_head = find_edu_head(ptree, pheads, tpos_words1)
+        if edu1_head is not None:
+            treepos_hn1, treepos_hw1 = edu1_head
+            hlabel1 = ptree[treepos_hn1].label()
+            hword1 = ptree[treepos_hw1].word
+            # if the head node is not the root of the syn tree,
+            # there is an attachment node
+            if treepos_hn1 != ():
+                treepos_an1 = treepos_hn1[:-1]
+                treepos_aw1 = pheads[treepos_an1]
+                alabel1 = ptree[treepos_an1].label()
+                aword1 = ptree[treepos_aw1].word
+
+        # find the head node of EDU2
+        # tree positions (in the syn tree) of the words that are in EDU2
+        tpos_leaves_edu2 = [tpos_leaf
+                            for tpos_leaf in ptree.treepositions('leaves')
+                            if ptree[tpos_leaf].overlaps(edu2)]
+        tpos_words2 = set(tpos_leaves_edu2)
+        edu2_head = find_edu_head(ptree, pheads, tpos_words2)
+        if edu2_head is not None:
+            treepos_hn2, treepos_hw2 = edu2_head
+            hlabel2 = ptree[treepos_hn2].label()
+            hword2 = ptree[treepos_hw2].word
+            # if the head node is not the root of the syn tree,
+            # there is an attachment node
+            if treepos_hn2 != ():
+                treepos_an2 = treepos_hn2[:-1]
+                treepos_aw2 = pheads[treepos_an2]
+                alabel2 = ptree[treepos_an2].label()
+                aword2 = ptree[treepos_aw2].word
+
+        # EXPERIMENTAL
+        #
+        # EDU 2 > EDU 1
+        if (treepos_hn1 != () and
+            treepos_aw1 in tpos_words2):
+            # dominance relationship: 2 > 1
+            yield ('SYN_dom_2', True)
+            # attachment label and word
+            yield ('SYN_alabel', alabel1)
+            yield ('SYN_aword', aword1)
+            # head label and word
+            yield ('SYN_hlabel', hlabel1)
+            yield ('SYN_hword', hword1)
+
+        # EDU 1 > EDU 2
+        if (treepos_hn2 != () and
+            treepos_aw2 in tpos_words1):
+            # dominance relationship: 1 > 2
+            yield ('SYN_dom_1', True)
+            # attachment label and word
+            yield ('SYN_alabel', alabel2)
+            yield ('SYN_aword', aword2)
+            # head label and word
+            yield ('SYN_hlabel', hlabel2)
+            yield ('SYN_hword', hword2)
+
+        # TODO assert that 1 > 2 and 2 > 1 cannot happen together
+
+        # TODO fire a feature if the head nodes of EDU1 and EDU2
+        # have the same attachment node ?
+
+    # TODO fire a feature with the pair of labels of the head nodes of EDU1
+    # and EDU2 ?
+
 
 def build_pair_feature_extractor():
     """Build the feature extractor for pairs of EDUs
@@ -625,8 +619,8 @@ def build_pair_feature_extractor():
     feats.extend(PAIR_LENGTH)
     funcs.append(extract_pair_length)
     # 5
-    # feats.extend(PAIR_SYNTAX)
-    # funcs.append(extract_pair_syntax)
+    feats.extend(PAIR_SYNTAX)
+    funcs.append(extract_pair_syntax)
     # 6
     # feats.extend(PAIR_SEMANTICS)  # NotImplemented
     # funcs.append(extract_pair_semantics)

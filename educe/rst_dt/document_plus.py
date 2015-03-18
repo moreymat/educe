@@ -286,21 +286,29 @@ class DocumentPlus(object):
             if edu.is_left_padding():
                 start_token = tokens[0]
                 ptb_toks = [start_token]
+                # TODO TODO TODO token indices
             else:
-                ptb_toks = [tok for tok in tokens
+                # EXPERIMENTAL
+                idc_toks = [(tok_idx, tok)
+                            for tok_idx, tok in enumerate(tokens)
                             if tok.overlaps(edu)]
-                # if possible, take tokens only from the tree chosen by
-                # align_with_trees()
-                ptree_idx = edu2sent[i]
-                if ptree_idx is not None:
-                    ptree = syn_trees[ptree_idx]
-                    if ptree is not None:
-                        clean_ptb_toks = [tok for tok in ptree.leaves()
-                                          if tok.overlaps(edu)]
-                        ptb_toks = clean_ptb_toks
+                ptb_toks = [tok for tok_idx, tok in idc_toks]
+                # EXPERIMENTAL: disable use of tree alignment
+                if False:
+                    # if possible, take tokens only from the tree chosen by
+                    # align_with_trees()
+                    ptree_idx = edu2sent[i]
+                    if ptree_idx is not None:
+                        ptree = syn_trees[ptree_idx]
+                        if ptree is not None:
+                            clean_ptb_toks = [tok for tok in ptree.leaves()
+                                              if tok.overlaps(edu)]
+                            ptb_toks = clean_ptb_toks
             ptb_tokens[edu] = ptb_toks
+            # TODO TODO TODO token indices
 
         self.ptb_tokens = ptb_tokens
+        # TODO TODO TODO token indices
 
         return self
 
@@ -333,10 +341,13 @@ class DocumentPlus(object):
             ptb_trees[edu] = ptrees  # mark for deprecation
             # get the actual tree
             if len(ptrees) == 0:
-                # no tree at all can happen when the EDU text is totally
+                # "no tree at all" can happen when the EDU text is totally
                 # absent from the list of sentences of this doc in the PTB
                 # ex: wsj_0696.out, last sentence
                 ptree_idx = None
+                print('EDU: ', edu)
+                emsg = 'No PTB tree for this EDU'
+                raise ValueError(emsg)
             elif len(ptrees) == 1:
                 ptree = ptrees[0]
                 ptree_idx = syn_trees.index(ptree)
@@ -350,11 +361,21 @@ class DocumentPlus(object):
                 ovlap_ratios = [float(ovlap) / len_espan
                                 for ovlap in ovlaps]
                 # cry for help if it goes bad
-                if max(ovlap_ratios) < 0.5:
+                if max(ovlap_ratios) > 0.9:
                     emsg = 'Slightly unsure about this EDU segmentation'
-                    # print('EDU: ', edu)
-                    # print('ptrees: ', [t.leaves() for t in ptrees])
-                    # raise ValueError(emsg)
+                    print('W: ' + emsg)
+                    print('EDU: ', edu.text())
+                    print('ptrees: ')
+                    for ptree in ptrees:
+                        print('    ', [str(leaf) for leaf in ptree.leaves()])
+                    print('=======================')
+                else:
+                    emsg = 'Quite unsure about this EDU segmentation'
+                    print('EDU: ', edu.text())
+                    print('ptrees: ')
+                    for ptree in ptrees:
+                        print('    ', [str(leaf) for leaf in ptree.leaves()])
+                    raise ValueError(emsg)
                 # otherwise just emit err msgs for info
                 if False:
                     err_msg = 'More than one PTB tree for this EDU'

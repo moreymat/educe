@@ -189,7 +189,8 @@ class DocumentPlusPreprocessor(object):
         edu2raw_sent = doc.edu2raw_sent
         raw_words = doc.raw_words  # TEMPORARY
         ptb_tokens = doc.ptb_tokens
-        ptb_trees = doc.ptb_trees
+        ptb_trees = doc.tkd_trees  # NEW
+        lex_heads = doc.lex_heads  # EXPERIMENTAL
         # pre-compute relative indices (in sent, para) in one iteration
         idxes_in_sent = relative_indices(edu2sent)
         rev_idxes_in_sent = relative_indices(edu2sent, reverse=True)
@@ -208,6 +209,8 @@ class DocumentPlusPreprocessor(object):
         res['tokens'] = []
         res['tags'] = []
         res['words'] = []
+        res['tok_beg'] = 0  # EXPERIMENTAL
+        res['tok_end'] = 0  # EXPERIMENTAL
         # sentence
         res['edu_idx_in_sent'] = idxes_in_sent[0]
         res['edu_rev_idx_in_sent'] = rev_idxes_in_sent[0]
@@ -262,11 +265,11 @@ class DocumentPlusPreprocessor(object):
             res['edu_rev_idx_in_para'] = rev_idxes_in_para[edu_idx]
 
             # syntax
-            if ptb_trees is not None:
-                ptrees = ptb_trees[edu]
-                if ptrees is not None:
-                    res['ptrees'] = ptrees
-
+            sent_idx = edu2sent[edu_idx]
+            if sent_idx is not None:
+                res['ptree'] = ptb_trees[sent_idx]
+                res['pheads'] = lex_heads[sent_idx]
+                    
             result[edu] = res
 
         return result
