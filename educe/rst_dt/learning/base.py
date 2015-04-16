@@ -7,6 +7,9 @@ from __future__ import print_function
 from functools import wraps
 import itertools as it
 
+from .ds_lst import find_edu_head
+
+
 class FeatureExtractionException(Exception):
     """
     Exceptions related to RST trees not looking like we would
@@ -244,13 +247,25 @@ class DocumentPlusPreprocessor(object):
             # parser
             res['edu_rev_idx_in_para'] = rev_idxes_in_para[edu_idx]
 
-            # syntax
+            # syntax (ctree)
             if len(trees) > 1:
                 tree_idx = edu2sent[edu_idx]
                 if tree_idx is not None:
-                    tree = trees[tree_idx]
-                    res['ptree'] = tree
-                    res['pheads'] = lex_heads[tree_idx]
+                    ptree = trees[tree_idx]
+                    res['ptree'] = ptree
+
+                    pheads = lex_heads[tree_idx]
+                    res['pheads'] = pheads
+
+                    # position of the words of the EDU in the syn tree
+                    tpos_words = [tpos
+                                  for tpos in ptree.treepositions('leaves')
+                                  if ptree[tpos].overlaps(edu)]
+                    res['tpos_words'] = tpos_words
+                    # position of the head node and its head word
+                    tpos_hn = find_edu_head(ptree, pheads, tpos_words)
+                    res['tpos_hn'] = tpos_hn
+
             result[edu] = res
 
         return result

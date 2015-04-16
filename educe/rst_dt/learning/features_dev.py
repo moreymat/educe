@@ -4,17 +4,13 @@
 
 from __future__ import print_function
 
-from collections import deque
 import re
 import itertools
-
-from nltk.tree import Tree
 
 from educe.external.postag import Token
 from educe.internalutil import treenode
 from educe.learning.keys import Substance
-from .base import lowest_common_parent, DocumentPlusPreprocessor
-
+from .base import DocumentPlusPreprocessor
 
 # ---------------------------------------------------------------------
 # preprocess EDUs
@@ -168,34 +164,6 @@ def extract_single_para(edu_info):
 
 # syntactic features
 
-# helpers
-def find_edu_head(tree, hwords, wanted):
-    """Find the word with highest occurrence in the lexicalized tree
-
-    Return a pair of treepositions (head node, head word), or None if
-    no occurrence of any word in wanted was found.
-    """
-    # prune wanted to prevent punctuation from becoming the head of an EDU
-    nohead_tags = set(['.', ',', "''", "``"])
-    wanted = set([tp for tp in wanted
-                  if tree[tp].tag not in nohead_tags])
-
-    all_treepos = deque([()])  # init with root treepos: ()
-    while all_treepos:
-        cur_treepos = all_treepos.popleft()
-        cur_tree = tree[cur_treepos]
-        cur_hw = hwords[cur_treepos]
-        if cur_hw in wanted:
-            return (cur_treepos, cur_hw)
-        elif isinstance(cur_tree, Tree):
-            c_treeposs = [tuple(list(cur_treepos) + [c_idx])
-                          for c_idx, c in enumerate(tree[cur_treepos])]
-            all_treepos.extend(c_treeposs)
-        else:  # don't try to recurse if the current subtree is a Token
-            pass
-    return None
-
-
 SINGLE_SYNTAX = [
     ('SYN_hlabel', Substance.DISCRETE),
     ('SYN_hword', Substance.DISCRETE),
@@ -208,24 +176,17 @@ def extract_single_syntax(edu_info):
     try:
         ptree = edu_info['ptree']
         pheads = edu_info['pheads']
+        tpos_hn = edu_info['tpos_hn']
     except KeyError:
         return
 
-    edu = edu_info['edu']
-
-    # tree positions (in the syn tree) of the words that are in the EDU
-    tpos_leaves_edu = [tpos_leaf
-                       for tpos_leaf in ptree.treepositions('leaves')
-                       if ptree[tpos_leaf].overlaps(edu)]
-    wanted = set(tpos_leaves_edu)
-    edu_head = find_edu_head(ptree, pheads, wanted)
-    if edu_head is not None:
-        treepos_hn, treepos_hw = edu_head
-        hlabel = ptree[treepos_hn].label()
-        hword = ptree[treepos_hw].word
+    if tpos_hn is not None:
+        hlabel = ptree[tpos_hn].label()
+        hword = ptree[pheads[tpos_hn]].word
 
         if False:
             # DEBUG
+            edu = edu_info['edu']
             print('edu: ', edu.text())
             print('hlabel: ', hlabel)
             print('hword: ', hword)
@@ -490,9 +451,13 @@ def extract_pair_syntax(edu_info1, edu_info2):
     try:
         ptree1 = edu_info1['ptree']
         pheads1 = edu_info1['pheads']
+        tpos_words1 = edu_info1['tpos_words']
+        tpos_hn1 = edu_info1['tpos_hn']
 
         ptree2 = edu_info2['ptree']
         pheads2 = edu_info2['pheads']
+        tpos_words2 = edu_info2['tpos_words']
+        tpos_hn2 = edu_info2['tpos_hn']
     except KeyError:
         return
 
@@ -504,49 +469,36 @@ def extract_pair_syntax(edu_info1, edu_info2):
         ptree = ptree1
         pheads = pheads1
 
-        # find the head node of EDU1
-        # tree positions (in the syn tree) of the words that are in EDU1
-        tpos_leaves_edu1 = [tpos_leaf
-                            for tpos_leaf in ptree.treepositions('leaves')
-                            if ptree[tpos_leaf].overlaps(edu1)]
-        tpos_words1 = set(tpos_leaves_edu1)
-        edu1_head = find_edu_head(ptree, pheads, tpos_words1)
-        if edu1_head is not None:
-            treepos_hn1, treepos_hw1 = edu1_head
-            hlabel1 = ptree[treepos_hn1].label()
-            hword1 = ptree[treepos_hw1].word
+        # EDU1: get head node and its head word, plus attachment node and
+        # its head word
+        if tpos_hn1 is not None:
+            hlabel1 = ptree[tpos_hn1].label()
+            hword1 = ptree[pheads[tpos_hn1]].word
             # if the head node is not the root of the syn tree,
             # there is an attachment node
-            if treepos_hn1 != ():
-                treepos_an1 = treepos_hn1[:-1]
-                treepos_aw1 = pheads[treepos_an1]
-                alabel1 = ptree[treepos_an1].label()
-                aword1 = ptree[treepos_aw1].word
+            if tpos_hn1 != ():
+                tpos_an1 = tpos_hn1[:-1]
+                alabel1 = ptree[tpos_an1].label()
+                tpos_aw1 = pheads[tpos_an1]
+                aword1 = ptree[tpos_aw1].word
 
-        # find the head node of EDU2
-        # tree positions (in the syn tree) of the words that are in EDU2
-        tpos_leaves_edu2 = [tpos_leaf
-                            for tpos_leaf in ptree.treepositions('leaves')
-                            if ptree[tpos_leaf].overlaps(edu2)]
-        tpos_words2 = set(tpos_leaves_edu2)
-        edu2_head = find_edu_head(ptree, pheads, tpos_words2)
-        if edu2_head is not None:
-            treepos_hn2, treepos_hw2 = edu2_head
-            hlabel2 = ptree[treepos_hn2].label()
-            hword2 = ptree[treepos_hw2].word
+        # EDU2: ibid
+        if tpos_hn2 is not None:
+            hlabel2 = ptree[tpos_hn2].label()
+            hword2 = ptree[pheads[tpos_hn2]].word
             # if the head node is not the root of the syn tree,
             # there is an attachment node
-            if treepos_hn2 != ():
-                treepos_an2 = treepos_hn2[:-1]
-                treepos_aw2 = pheads[treepos_an2]
-                alabel2 = ptree[treepos_an2].label()
-                aword2 = ptree[treepos_aw2].word
+            if tpos_hn2 != ():
+                tpos_an2 = tpos_hn2[:-1]
+                alabel2 = ptree[tpos_an2].label()
+                tpos_aw2 = pheads[tpos_an2]
+                aword2 = ptree[tpos_aw2].word
 
         # EXPERIMENTAL
         #
         # EDU 2 > EDU 1
-        if (treepos_hn1 != () and
-            treepos_aw1 in tpos_words2):
+        if (tpos_hn1 != () and
+            tpos_aw1 in tpos_words2):
             # dominance relationship: 2 > 1
             yield ('SYN_dom_2', True)
             # attachment label and word
@@ -557,8 +509,8 @@ def extract_pair_syntax(edu_info1, edu_info2):
             yield ('SYN_hword', hword1)
 
         # EDU 1 > EDU 2
-        if (treepos_hn2 != () and
-            treepos_aw2 in tpos_words1):
+        if (tpos_hn2 != () and
+            tpos_aw2 in tpos_words1):
             # dominance relationship: 1 > 2
             yield ('SYN_dom_1', True)
             # attachment label and word
