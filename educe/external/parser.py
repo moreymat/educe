@@ -16,7 +16,6 @@ without.
 """
 
 import collections
-from itertools import chain
 
 import nltk.tree
 
@@ -44,8 +43,7 @@ class SearchableTree(nltk.Tree):
             return []
         else:
             return concat(x.topdown(pred, prunable) for x in self
-                           if isinstance(x, SearchableTree))
-
+                          if isinstance(x, SearchableTree))
 
     def topdown_smallest(self, pred, prunable=None):
         """
@@ -70,7 +68,6 @@ class SearchableTree(nltk.Tree):
             return []
         else:
             return matching_kids()
-
 
     def depth_first_iterator(self):
         """
@@ -102,7 +99,7 @@ class ConstituencyTree(SearchableTree, Standoff):
     Note that all children must have a `span` member of type
     `Span`
 
-    The `subtrees()` function can useful here.
+    The `subtrees()` function can be useful here.
     """
     def __init__(self, node, children, origin=None):
         SearchableTree.__init__(self, node, children)
@@ -136,13 +133,15 @@ class ConstituencyTree(SearchableTree, Standoff):
         toks = collections.deque(tokens)
 
         def step(t):
+            """Recursively build t"""
             if not isinstance(t, nltk.tree.Tree):
                 if toks:
                     return toks.popleft()
                 else:
                     raise Exception('Must have same number of input tokens '
                                     'as leaves in the tree')
-            return cls(t.label(), list(map(step, t)))
+            return cls(t.label(), [step(child) for child in t])
+
         return step(tree)
 
 
