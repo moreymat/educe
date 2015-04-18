@@ -5,12 +5,13 @@
 from __future__ import print_function
 
 import copy
-import itertools
+from itertools import groupby, islice, product
 
 from educe.external.postag import Token
 from educe.util import relative_indices
 from .text import Sentence, Paragraph, clean_edu_text
 from .annotation import EDU
+from .ds_lst import DSLST
 
 
 # helpers for _align_with_doc_structure
@@ -98,11 +99,17 @@ class DocumentPlus(object):
         _lpad_tok = Token.left_padding()
         self.tkd_tokens.append(_lpad_tok)
 
-        # trees
+        # (educified) trees
         self.tkd_trees = []
         # left padding
         _lpad_tree = None
         self.tkd_trees.append(_lpad_tree)
+
+        # (educified) lexicalized syntactic trees
+        self.lstrees = []
+        # left padding
+        _lpad_lstree = None
+        self.lstrees.append(_lpad_lstree)
 
     def align_with_doc_structure(self):
         """Align EDUs with the document structure (paragraph and sentence).
@@ -330,7 +337,7 @@ class DocumentPlus(object):
                     emsg = ('Segmentation mismatch:',
                             'one EDU, more than one PTB tree')
                     print(edu)
-                    for ptree in ptrees:
+                    for ptree in syn_trees:
                         print('    ', [str(leaf) for leaf in ptree.leaves()])
                     raise ValueError(emsg)
 
@@ -356,12 +363,27 @@ class DocumentPlus(object):
         self.edu2idx_in_sent = idxes_in_sent
         self.edu2rev_idx_in_sent = rev_idxes_in_sent
 
+        # compute the DS-LSTs
+        edus = self.edus
+        edu2sent = self.edu2sent
+        lstrees = self.lstrees
+
+        ds_lsts = []
+        iter_edus = iter(edus[1:])
+        for tree_idx, dup_tree_idx in groupby(edu2sent[1:]):
+            edus_in_ptree = islice(iter_edus, len(dup_tree_idx))
+            if tree_idx is not None:
+                lstree = lstrees[tree_idx]
+                ds_lst = DSLST(lstree, edus_in_ptree)
+                ds_lsts.append(ds_lst)
+        self.ds_lsts = ds_lsts
+
         return self
 
     def all_edu_pairs(self):
         """Generate all EDU pairs of a document"""
         edus = self.edus
-        all_pairs = [epair for epair in itertools.product(edus, edus[1:])
+        all_pairs = [epair for epair in product(edus, edus[1:])
                      if epair[0] != epair[1]]
         return all_pairs
 

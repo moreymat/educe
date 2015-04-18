@@ -174,12 +174,11 @@ SINGLE_SYNTAX = [
 def extract_single_syntax(edu_info):
     """syntactic features for the EDU"""
     try:
-        ptree = edu_info['ptree']
-        pheads = edu_info['pheads']
-        tpos_hn = edu_info['tpos_hn']
+        ds_lst = edu_info['ds_lst']
     except KeyError:
         return
 
+    # TODO: rewrite, call functions on ds_lst
     if tpos_hn is not None:
         hlabel = ptree[tpos_hn].label()
         hword = ptree[pheads[tpos_hn]].word
@@ -194,6 +193,7 @@ def extract_single_syntax(edu_info):
 
         yield ('SYN_hlabel', hlabel)
         yield ('SYN_hword', hword)
+    # end TODO
 
 
 # TODO: features on semantic similarity
@@ -449,25 +449,16 @@ PAIR_SYNTAX = [
 def extract_pair_syntax(edu_info1, edu_info2):
     """syntactic features for the pair of EDUs"""
     try:
-        ptree1 = edu_info1['ptree']
-        pheads1 = edu_info1['pheads']
-        tpos_words1 = edu_info1['tpos_words']
-        tpos_hn1 = edu_info1['tpos_hn']
-
-        ptree2 = edu_info2['ptree']
-        pheads2 = edu_info2['pheads']
-        tpos_words2 = edu_info2['tpos_words']
-        tpos_hn2 = edu_info2['tpos_hn']
+        ds_lst1 = edu_info1['ds_lst']
+        ds_lst2 = edu_info2['ds_lst']
     except KeyError:
         return
 
-    edu1 = edu_info1['edu']
-    edu2 = edu_info2['edu']
-
     # generate DS-LST features for intra-sentential
-    if ptree1 == ptree2:
-        ptree = ptree1
-        pheads = pheads1
+    if ds_lst1 == ds_lst2:
+        ds_lst = ds_lst1
+
+        # TODO: rewrite, call functions on ds_lst
 
         # EDU1: get head node and its head word, plus attachment node and
         # its head word

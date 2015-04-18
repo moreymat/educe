@@ -161,7 +161,7 @@ class DocumentPlusPreprocessor(object):
         edu2para = doc.edu2para
         edu2sent = doc.edu2sent
         edu2tokens = doc.edu2tokens
-        lex_heads = doc.lex_heads  # EXPERIMENTAL
+        ds_lsts = doc.ds_lsts  # WIP
         
         # pre-compute relative indices (in sent, para) in one iteration
         # NB: moved to document_plus itself
@@ -231,7 +231,8 @@ class DocumentPlusPreprocessor(object):
 
             # position of EDU in sentence
             # aka num_edus_from_sent_start aka offset
-            res['edu_idx_in_sent'] = idxes_in_sent[edu_idx]
+            edu_idx_in_sent = idxes_in_sent[edu_idx]
+            res['edu_idx_in_sent'] = edu_idx_in_sent
             # aka num_edus_to_sent_end aka revOffset
             res['edu_rev_idx_in_sent'] = rev_idxes_in_sent[edu_idx]
 
@@ -251,20 +252,7 @@ class DocumentPlusPreprocessor(object):
             if len(trees) > 1:
                 tree_idx = edu2sent[edu_idx]
                 if tree_idx is not None:
-                    ptree = trees[tree_idx]
-                    res['ptree'] = ptree
-
-                    pheads = lex_heads[tree_idx]
-                    res['pheads'] = pheads
-
-                    # position of the words of the EDU in the syn tree
-                    tpos_words = [tpos
-                                  for tpos in ptree.treepositions('leaves')
-                                  if ptree[tpos].overlaps(edu)]
-                    res['tpos_words'] = tpos_words
-                    # position of the head node and its head word
-                    tpos_hn = find_edu_head(ptree, pheads, tpos_words)
-                    res['tpos_hn'] = tpos_hn
+                    res['ds_lst'] = ds_lsts[tree_idx]
 
             result[edu] = res
 

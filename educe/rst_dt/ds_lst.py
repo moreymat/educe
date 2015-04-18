@@ -56,14 +56,19 @@ class DSLST(object):
     def __init__(self, lstree, edus):
         self.lstree = lstree
         self.edus = edus
-        self._align()
+        # align
+        word2edu = []
+        for word in lstree.ed_tree.leaves():
+            self._align()
 
     def _align(self):
         """Internal helper to align the parse tree with the EDUs"""
         edus = self.edus
         ptree = self.lstree.ed_tree
-        pheads = self.lstree.tpos_head
+        pheads = self.lstree.lex_head
 
+        treepos2edu = 
+        
         treepos_words = []
         treepos_head = []
         for edu in edus:
@@ -93,24 +98,13 @@ class DSLST(object):
         """Get the exception EDU: head node is the root of the syn tree"""
         pass  # TODO: return type: EDU or (rel? abs?) EDU idx?
 
-    def head_word(self, edu):
+    def ds_head_word(self, ds_idx):
         """Word with the highest occurrence as a lexical head, from edu"""
         pass  # TODO: return type: treepos or word?
 
-    def _treepos_head_node(self, rel_edu_idx):
-        """Get the tree position of the head node for this EDU"""
-        # RESUME HERE
-
-    def head_node_label(self, rel_edu_idx):
-        """Label of the head node of the EDU"""
-        tpos_hn = self.treepos_head[rel_edu_idx]
-        hn_lbl = self.lstree.ed_tree[tpos_hn].label()
-        return hn_lbl
-
-    def head_word(self, rel_edu_idx):
-        """Head word of the EDU"""
-        tpos_hn = self.treepos_head[rel_edu_idx]
-        tpos_hw = self.lstree.tpos_head
+    def head_node(self, edu):
+        """Node in which the head word of edu occurs highest"""
+        pass  # TODO: return type: treepos or label?
 
     def _find_nh(self, edu):
         """helper"""
