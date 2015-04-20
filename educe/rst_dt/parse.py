@@ -19,10 +19,9 @@ import codecs
 from nltk import Tree
 
 from educe.annotation import Span
-from .annotation import\
-    RSTTreeException,\
-    EDU, Node,\
-    RSTContext, RSTTree, SimpleRSTTree
+from .annotation import (RSTTreeException,
+                         EDU, Node,
+                         RSTContext, RSTTree, SimpleRSTTree)
 from .rst_wsj_corpus import load_rst_wsj_corpus_text_file
 from ..external.postag import generic_token_spans
 from ..internalutil import treenode
@@ -44,6 +43,9 @@ _ROOT_PATTERN = re.compile("%s %s" % (_ROOT_TYPE_RE, _SPAN_RE))
 _LEAF_PATTERN = r"\[[^\]]+\]"  # non-']' chars in square brackets
 
 
+#
+# pre-processing
+#
 def _process_text(matchobj):
     """
     Helper function, ignore
@@ -63,21 +65,27 @@ def _process_head(matchobj):
     return "(%s|%s|%s" % (ntype, span, rel)
 
 
-def _mark_leaves(tstr):
+def _preprocess(tstr):
     """
-    Helper function, ignore
+    Helper function: Given a raw RST treebank string, return a massaged
+    representation for easier parsing, along with its first/last EDU number.
     """
-    return _TEXT_RE.sub(_process_text, tstr)
+    res = tstr.strip()
+    # mark leaves
+    res = _TEXT_RE.sub(_process_text, res)
+    # remove extraneous whitespaces
+    res = re.sub(r"\(\s+", "(", res)  # .replace("\n",""))
+    res = re.sub(r"\s+\)", ")", res)
+    res = re.sub(r"\s\s+", " ", res)
+    # mark heads
+    res = _ROOT_PATTERN.sub(_process_head, res)
+    res = _HEAD_PATTERN.sub(_process_head, res)
+    return res
 
 
-def _mark_heads(tstr):
-    """
-    Helper function, ignore
-    """
-    hstr = _ROOT_PATTERN.sub(_process_head, tstr)
-    return _HEAD_PATTERN.sub(_process_head, hstr)
-
-
+#
+# post-processing
+#
 def _parse_edu(descr, edu_start, start=0):
     """
     Parse an RST DT leaf string
@@ -113,26 +121,12 @@ def _parse_node(descr, span):
     return Node(nuclearity, edu_span, span, rel)
 
 
-def _preprocess(tstr):
-    """
-    Helper function: Given a raw RST treebank string, return a massaged
-    representation for easier parsing, along with its first/last EDU number.
-    """
-    res = tstr.strip()
-    res = _mark_leaves(res)
-    res = re.sub(r"\(\s+", "(", res)  # .replace("\n",""))
-    res = re.sub(r"\s+\)", ")", res)
-    res = re.sub(r"\s\s+", " ", res)
-    res = _mark_heads(res)
-    return res
-
-
 def _tree_span(tree):
     """
     Span for the current node or leaf in the tree
     """
-    return treenode(tree).span if isinstance(tree, Tree)\
-        else tree.span
+    return (treenode(tree).span if isinstance(tree, Tree)
+            else tree.span)
 
 
 def _postprocess(tree, start=0, edu_start=1):
@@ -165,6 +159,9 @@ def _postprocess(tree, start=0, edu_start=1):
                                    child)
 
 
+#
+# align with context
+#
 def _recompute_spans(tree, context):
     """
     Recalculate tree node spans from the bottom up
