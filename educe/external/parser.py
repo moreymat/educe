@@ -16,6 +16,7 @@ without.
 """
 
 import collections
+import re
 
 import nltk.tree
 
@@ -143,6 +144,63 @@ class ConstituencyTree(SearchableTree, Standoff):
             return cls(t.label(), [step(child) for child in t])
 
         return step(tree)
+
+
+#
+# lexicalized syntactic trees
+#
+class CategoryWordTag(object):
+    """Label that contains a syntactic category, a head word and a tag.
+
+    Modelled after ``edu.stanford.nlp.ling.CategoryWordTag``.
+
+    References
+    ----------
+    https://github.com/stanfordnlp/CoreNLP/blob/master/src/edu/stanford/nlp/ling/CategoryWordTag.java
+    """
+
+    NODE_RE = re.compile('(%s)\[(%s)/(%s)\]' % (
+        '[^[]+',  # category
+        '[^/]+',  # word
+        '[^\]]+'  # tag
+    ))
+
+    def __init__(self, category, word, tag):
+        self.label = category
+        self.word = word
+        self.tag = tag
+
+    def __str__(self):
+        """
+        TODO: if we stick to nltk, return unicode text and decorate with
+        @python_2_unicode_compatible
+        """
+        cwt_str = self.label + '[' + self.word + '/' + self.tag + ']'
+        return cwt_str
+
+    @classmethod
+    def fromstring(cls, cwt_str):
+        """Build from a string"""
+        category, word, tag = cls.NODE_RE.match(cwt_str).groups()
+        return cls(category, word, tag)
+
+
+class LexicalizedConstituencyTree(ConstituencyTree):
+    """ConstituencyTree where each phrasal node has a head word and tag.
+
+    References
+    ----------
+    http://nlp.stanford.edu/software/parser-faq.shtml#u
+    https://mailman.stanford.edu/pipermail/parser-user/2011-May/001005.html
+    """
+
+    @classmethod
+    def fromstring_and_tokens(cls, tree_str, tokens):
+        """Build a lexicalized ctree from a string and educe tokens"""
+        read_cwt = CategoryWordTag.fromstring
+        nltk_tree = nltk.tree.Tree.fromstring(tree_str, read_node=read_cwt)
+        educe_tree = ConstituencyTree.build(nltk_tree, tokens)
+        return educe_tree
 
 
 class DependencyTree(SearchableTree, Standoff):
