@@ -97,9 +97,15 @@ if __name__ == '__main__':
     parser.add_argument('outfile', nargs='?', type=argparse.FileType('wb'),
                         default=sys.stdout,
                         help='output file')
+    parser.add_argument('--corpus_sel', default='double',
+                        choices=['double', 'train', 'test'],
+                        help='corpus selection')
     parser.add_argument('--pairs', default='related',
                         choices=['related', 'all'],
                         help='selection of EDU pairs to examine')
+    parser.add_argument('--lbl_fn', default='gov_dep',
+                        choices = ['gov_dep', 'r1_r2'],
+                        help='label function for pairs')
     # parameters for CountVectorizer
     # NB: the following defaults differ from the standard ones in
     # CountVectorizer.
@@ -135,12 +141,14 @@ if __name__ == '__main__':
     outfile = args.outfile
     n_jobs = args.n_jobs
     verbose = args.verbose
+    corpus_sel = args.corpus_sel
     sel_pairs = args.pairs
+    lbl_fn = args.lbl_fn
     distance_range = (args.scale if args.scale != 'None'
                       else None)
 
     # * read the corpus
-    rst_corpus_dir = RST_CORPUS['double']
+    rst_corpus_dir = RST_CORPUS[corpus_sel]
     rst_reader = Reader(rst_corpus_dir)
     rst_corpus = rst_reader.slurp(verbose=True)
     corpus_texts = [v.text() for k, v in sorted(rst_corpus.items())]
@@ -181,6 +189,8 @@ if __name__ == '__main__':
     # print header to file: list parameters used for this run
     # NB: this should really be a dump of the state of the *WMD* object
     params = {
+        'sel_pairs': sel_pairs,
+        'lbl_fn': lbl_fn,
         'corpus': os.path.relpath(rst_corpus_dir, start=DATA_DIR),
         'strip_accents': strip_accents,
         'lowercase': lowercase,
@@ -207,40 +217,44 @@ if __name__ == '__main__':
     # normalize each row of the count matrix using the l1 norm
     # (copy=False to perform in place)
     edu_vecs = normalize(edu_vecs, norm='l1', copy=False)
-    # get all pairs of EDUs of interest, here as triples
-    # (gov_idx, dep_idx, lbl)
-    # TODO maybe sort edu pairs so that dependents with
-    # the same governor are grouped (potential speed up?)
-    edu_pairs = [
-        [(doc_key, gov_idx, dep_idx, lbl)
-         for dep_idx, (gov_idx, lbl)
-         in enumerate(zip(dtree.heads[1:], dtree.labels[1:]),
-                      start=1)]
-        for doc_key, dtree in doc_key_dtrees
-    ]
-    if sel_pairs == 'all':
-        # generate all possible pairs
-        # we just need to generate half of them because WMD is symmetric,
-        # so we generate all combinations, where we keep a distinctive
-        # order if the pair is related
-        edu_pairs_rel = {(doc_key, gov_idx, dep_idx): lbl
-                         for doc_key, gov_idx, dep_idx, lbl
-                         in itertools.chain.from_iterable(edu_pairs)}
-        edu_pairs = []
-        for doc_key, dtree in doc_key_dtrees:
-            edu_pairs.append([])
-            for gov_idx, dep_idx in itertools.combinations(
-                    range(len(dtree.edus)), 2):
-                if (doc_key, gov_idx, dep_idx) in edu_pairs_rel:
-                    lbl = edu_pairs_rel[(doc_key, gov_idx, dep_idx)]
-                    kept_pair = (doc_key, gov_idx, dep_idx, lbl)
-                elif (doc_key, dep_idx, gov_idx) in edu_pairs_rel:
-                    lbl = edu_pairs_rel[(doc_key, dep_idx, gov_idx)]
-                    kept_pair = (doc_key, dep_idx, gov_idx, lbl)
-                else:
-                    lbl = 'UNRELATED'
-                    kept_pair = (doc_key, gov_idx, dep_idx, lbl)
-                edu_pairs[-1].append(kept_pair)
+
+    # get all pairs of EDUs of interest, here as 4-tuples
+    # (doc_key, gov_idx, dep_idx, lbl):
+    # 1. select pairs of EDUs to evaluate
+    if sel_pairs == 'related':
+        edu_pairs_docs = [
+            [(gov_idx, dep_idx) for dep_idx, gov_idx
+             in enumerate(dtree.heads[1:], start=1)]
+            for doc_key, dtree in doc_key_dtrees
+        ]
+    else:  # all pairs
+        edu_pairs_docs = [
+            [(e1_idx, e2_idx) for e1_idx, e2_idx
+             in itertools.permutations(range(len(dtree.edus)), r=2)]
+            for doc_key, dtree in doc_key_dtrees
+        ]
+    # 2. attach label(s) to each pair of EDUs
+    if lbl_fn == 'gov_dep':
+        edu_pairs = [
+            [(doc_key, gov_idx, dep_idx,
+              (dtree.labels[dep_idx] if dtree.heads[dep_idx] == gov_idx
+               else 'UNRELATED'))
+             for (gov_idx, dep_idx) in edu_pairs_doc]
+            for (doc_key, dtree), edu_pairs_doc
+            in zip(doc_key_dtrees, edu_pairs_docs)
+        ]
+    else:  # r1, r2
+        edu_pairs = [
+            [(doc_key, e1_idx, e2_idx,
+              ', '.join(str(x) for x in
+                        [dtree.labels[e1_idx], dtree.labels[e2_idx]]))
+             for (e1_idx, e2_idx) in edu_pairs_doc]
+            for (doc_key, dtree), edu_pairs_doc
+            in zip(doc_key_dtrees, edu_pairs_docs)
+        ]
+    # TODO add the possibility to use functions that filter out pairs,
+    # like equivalence classes on pairs (ex: WMD is symmetric)
+    # or implications (ex: (e1, e2, r) => (e2, e1, UNRELATED))
 
     # transform local index of EDU in doc into global index in the list
     # of all EDUs from all docs
