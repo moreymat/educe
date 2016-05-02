@@ -101,7 +101,7 @@ if __name__ == '__main__':
                         choices=['double', 'train', 'test'],
                         help='corpus selection')
     parser.add_argument('--pairs', default='related',
-                        choices=['related', 'all'],
+                        choices=['related', 'all', 'docs', 'paras', 'sents'],
                         help='selection of EDU pairs to examine')
     parser.add_argument('--lbl_fn', default='gov_dep',
                         choices = ['gov_dep', 'r1_r2'],
@@ -202,85 +202,231 @@ if __name__ == '__main__':
           file=outfile)
 
     # do the real job
-    corpus_items = sorted(rst_corpus.items())
+    corpus_items = [x for x in sorted(rst_corpus.items())
+                    if not x[0].doc.startswith('file')]
+    # WIP exclude file* files for paras
     doc_keys = [key.doc for key, doc in corpus_items]
-    doc_key_dtrees = [
-        (doc_key.doc,
-         RstDepTree.from_simple_rst_tree(SimpleRSTTree.from_rst_tree(doc)))
-        for doc_key, doc in corpus_items
-    ]
-    edu_txts = list(e.text().replace('\n', ' ')
-                    for doc_key, dtree in doc_key_dtrees
-                    for e in dtree.edus)
-    # vectorize each EDU using its text
-    edu_vecs = vect.transform(edu_txts)
-    # normalize each row of the count matrix using the l1 norm
-    # (copy=False to perform in place)
-    edu_vecs = normalize(edu_vecs, norm='l1', copy=False)
-
-    # get all pairs of EDUs of interest, here as 4-tuples
-    # (doc_key, gov_idx, dep_idx, lbl):
-    # 1. select pairs of EDUs to evaluate
-    if sel_pairs == 'related':
-        edu_pairs_docs = [
-            [(gov_idx, dep_idx) for dep_idx, gov_idx
-             in enumerate(dtree.heads[1:], start=1)]
-            for doc_key, dtree in doc_key_dtrees
-        ]
-    else:  # all pairs
-        edu_pairs_docs = [
-            [(e1_idx, e2_idx) for e1_idx, e2_idx
-             in itertools.permutations(range(len(dtree.edus)), r=2)]
-            for doc_key, dtree in doc_key_dtrees
-        ]
-    # 2. attach label(s) to each pair of EDUs
-    if lbl_fn == 'gov_dep':
-        edu_pairs = [
-            [(doc_key, gov_idx, dep_idx,
-              (dtree.labels[dep_idx] if dtree.heads[dep_idx] == gov_idx
-               else 'UNRELATED'))
-             for (gov_idx, dep_idx) in edu_pairs_doc]
-            for (doc_key, dtree), edu_pairs_doc
-            in zip(doc_key_dtrees, edu_pairs_docs)
-        ]
-    else:  # r1, r2
-        edu_pairs = [
-            [(doc_key, e1_idx, e2_idx,
-              ', '.join(str(x) for x in
-                        [dtree.labels[e1_idx], dtree.labels[e2_idx]]))
-             for (e1_idx, e2_idx) in edu_pairs_doc]
-            for (doc_key, dtree), edu_pairs_doc
-            in zip(doc_key_dtrees, edu_pairs_docs)
-        ]
-    # TODO add the possibility to use functions that filter out pairs,
-    # like equivalence classes on pairs (ex: WMD is symmetric)
-    # or implications (ex: (e1, e2, r) => (e2, e1, UNRELATED))
-
-    # transform local index of EDU in doc into global index in the list
-    # of all EDUs from all docs
-    doc_lens = [0] + [len(dtree.edus)
-                      for doc_key, dtree in doc_key_dtrees[:-1]]
-    doc_offsets = np.cumsum(doc_lens)
-    edu_pairs = [[(doc_key, gov_idx, dep_idx, lbl,
-                   doc_offset + gov_idx, doc_offset + dep_idx)
-                  for doc_key, gov_idx, dep_idx, lbl
-                  in doc_edu_pairs]
-                 for doc_offset, doc_edu_pairs
-                 in zip(doc_offsets, edu_pairs)]
-    edu_pairs = list(itertools.chain.from_iterable(edu_pairs))
     # WIP
-    # compute the WMD between the pairs of EDUs
-    edu_pairs_wmd = Parallel(n_jobs=n_jobs, verbose=verbose)(
-        delayed(wmd)(gov_idx_abs, dep_idx_abs)
-        for doc_key, gov_idx, dep_idx, lbl, gov_idx_abs, dep_idx_abs
-        in edu_pairs
-    )
+    # pairs of docs
+    if sel_pairs == 'docs':
+        doc_txts = [doc.text() for key, doc in corpus_items]
+        # NB: we need to keep name "edu_vecs" so that wmd() has the right
+        # ref
+        # FIXME change wmd() and the code below to favor a generic name
+        edu_vecs = vect.transform(doc_txts)
+        edu_vecs = normalize(edu_vecs, norm='l1', copy=False)
+        # compute WMD for all pairs of docs ; WMD is symmetric hence
+        # combinations()
+        doc_pairs_idx = list(itertools.combinations(
+            range(len(corpus_items)), r=2))
+        if False:  # DEBUG
+            doc_pairs_wmd = Parallel(n_jobs=n_jobs, verbose=verbose)(
+                delayed(wmd)(doc1_idx, doc2_idx)
+                for doc1_idx, doc2_idx
+                in doc_pairs_idx
+            )
+        else:
+            doc_pairs_wmd = (wmd(doc1_idx, doc2_idx)
+                             for doc1_idx, doc2_idx
+                             in doc_pairs_idx)
 
-    wmd_strs = [
-        ("%s::%s::%.5f::(%s)--(%s)" %
-         (doc_key, lbl, sim, edu_txts[gov_idx_abs], edu_txts[dep_idx_abs]))
-        for (doc_key, gov_idx, dep_idx, lbl, gov_idx_abs, dep_idx_abs), sim
-        in zip(edu_pairs, edu_pairs_wmd)
-    ]
-    print('\n'.join(wmd_strs), file=outfile)
-    # end MOVE transform()
+        wmd_strs = (
+            ("%s::%s::%.5f" %
+             (doc_keys[doc1_idx], doc_keys[doc2_idx], sim))
+            for (doc1_idx, doc2_idx), sim
+            in itertools.izip(doc_pairs_idx, doc_pairs_wmd)
+        )
+        print('\n'.join(wmd_strs), file=outfile)
+    elif sel_pairs == 'paras':
+        doc_txts = [doc.text() for key, doc in corpus_items]
+        doc_paras = [(doc_key, para_idx, para)
+                     for doc_key, doc_txt in zip(doc_keys, doc_txts)
+                     for para_idx, para in enumerate(doc_txt.split('\n\n'))]
+        para_keys = [(doc_key, para_idx)
+                     for doc_key, para_idx, para in doc_paras]
+        paras = [para for doc_key, para_idx, para in doc_paras]
+
+        # TODO features to detect lists (parallel structures, enumerations)
+        # WIP trigger for elaboration-set-member(List ... List) ?
+        def is_unique_sentence_colon(s):
+            """True if a string is a unique sentence ending with a colon.
+
+            For raw text files, unique sentence means no '\n'.
+            """
+            s = s.strip()
+            return s[-1] == ':' and '\n' not in s
+
+        # WIP attempt at detecting sections:
+        # typically: incoming rel = 'Topic-Shift',
+        # outgoing rel = 'TextualOrganization'
+        def is_title_cased(tok_seq):
+            """True if a sequence of tokens is title-cased"""
+            title_optional = ['a', 'and', 'at', 'of', 'on', 'or', 'the', 'to']
+            return all(x[0].isupper() for x in tok_seq
+                       if (x[0].isalpha() and
+                           x not in title_optional))
+
+        def is_start_upper(tok_seq):
+            """True if a sequence starts with two upper-cased tokens"""
+            #return all(x.isupper() for x in tok_seq[:2])
+            return all(x.isupper() for x in
+                       [y for y in tok_seq if y.isalnum()][:2])
+
+        for doc_key, para_idx, para in doc_paras:
+            # dumb tokenizer
+            para_toks = [x for x in para.split()]
+            # title-cased strings and strings whose start is upper-cased
+            # TODO for .edus and .dis, apply only to the first EDU of the
+            # span
+            if ((is_title_cased(para_toks) or
+                 is_start_upper(para_toks))):
+                print(doc_key, para_idx, para)
+        raise ValueError('Check me')
+        # end WIP sections
+
+        # NB: we need to keep name "edu_vecs" so that wmd() has the right
+        # ref
+        # FIXME change wmd() and the code below to favor a generic name
+        edu_vecs = vect.transform(paras)
+        edu_vecs = normalize(edu_vecs, norm='l1', copy=False)
+        # compute WMD for all pairs ; WMD is symmetric hence
+        # combinations()
+        pairs_idx = list(itertools.combinations(
+            range(len(paras)), r=2))
+        print('Tot. nb. jobs', len(pairs_idx))  # WIP
+        pairs_wmd = Parallel(n_jobs=n_jobs, verbose=verbose)(
+            delayed(wmd)(elt1_idx, elt2_idx)
+            for elt1_idx, elt2_idx
+            in pairs_idx
+        )
+
+        wmd_strs = (
+            ("%s:%s:%s:%s:%.5f" %
+             (para_keys[elt1_idx][0],
+              para_keys[elt1_idx][1],
+              para_keys[elt2_idx][0],
+              para_keys[elt2_idx][1],
+              sim))
+            for (elt1_idx, elt2_idx), sim
+            in itertools.izip(pairs_idx, pairs_wmd)
+        )
+        print('\n'.join(wmd_strs), file=outfile)
+    elif sel_pairs == 'sents':
+        doc_txts = [doc.text() for key, doc in corpus_items]
+        doc_sents = [(doc_key, sent_idx, sent)
+                     for doc_key, doc_txt in zip(doc_keys, doc_txts)
+                     for sent_idx, sent in enumerate(
+                             x for x in doc_txt.split('\n')
+                             if x.strip())]
+        sent_keys = [(doc_key, sent_idx)
+                     for doc_key, sent_idx, sent in doc_sents]
+        sents = [sent for doc_key, sent_idx, sent in doc_sents]
+        # NB: we need to keep name "edu_vecs" so that wmd() has the right
+        # ref
+        # FIXME change wmd() and the code below to favor a generic name
+        edu_vecs = vect.transform(sents)
+        edu_vecs = normalize(edu_vecs, norm='l1', copy=False)
+        # compute WMD for all pairs ; WMD is symmetric hence
+        # combinations()
+        pairs_idx = list(itertools.combinations(
+            range(len(sents)), r=2))
+        print('Tot. nb. jobs', len(pairs_idx))  # WIP
+        pairs_wmd = Parallel(n_jobs=n_jobs, verbose=verbose)(
+            delayed(wmd)(elt1_idx, elt2_idx)
+            for elt1_idx, elt2_idx
+            in pairs_idx
+        )
+
+        wmd_strs = (
+            ("%s:%s:%s:%s:%.5f" %
+             (sent_keys[elt1_idx][0],
+              sent_keys[elt1_idx][1],
+              sent_keys[elt2_idx][0],
+              sent_keys[elt2_idx][1],
+              sim))
+            for (elt1_idx, elt2_idx), sim
+            in itertools.izip(pairs_idx, pairs_wmd)
+        )
+        print('\n'.join(wmd_strs), file=outfile)
+    else:
+        # pairs of EDUs
+        doc_key_dtrees = [
+            (doc_key.doc,
+             RstDepTree.from_simple_rst_tree(SimpleRSTTree.from_rst_tree(doc)))
+            for doc_key, doc in corpus_items
+        ]
+        edu_txts = list(e.text().replace('\n', ' ')
+                        for doc_key, dtree in doc_key_dtrees
+                        for e in dtree.edus)
+        # vectorize each EDU using its text
+        edu_vecs = vect.transform(edu_txts)
+        # normalize each row of the count matrix using the l1 norm
+        # (copy=False to perform in place)
+        edu_vecs = normalize(edu_vecs, norm='l1', copy=False)
+
+        # get all pairs of EDUs of interest, here as 4-tuples
+        # (doc_key, gov_idx, dep_idx, lbl):
+        # 1. select pairs of EDUs to evaluate
+        if sel_pairs == 'related':
+            edu_pairs_docs = [
+                [(gov_idx, dep_idx) for dep_idx, gov_idx
+                 in enumerate(dtree.heads[1:], start=1)]
+                for doc_key, dtree in doc_key_dtrees
+            ]
+        else:  # all pairs
+            edu_pairs_docs = [
+                [(e1_idx, e2_idx) for e1_idx, e2_idx
+                 in itertools.permutations(range(len(dtree.edus)), r=2)]
+                for doc_key, dtree in doc_key_dtrees
+            ]
+        # 2. attach label(s) to each pair of EDUs
+        if lbl_fn == 'gov_dep':
+            edu_pairs = [
+                [(doc_key, gov_idx, dep_idx,
+                  (dtree.labels[dep_idx] if dtree.heads[dep_idx] == gov_idx
+                   else 'UNRELATED'))
+                 for (gov_idx, dep_idx) in edu_pairs_doc]
+                for (doc_key, dtree), edu_pairs_doc
+                in zip(doc_key_dtrees, edu_pairs_docs)
+            ]
+        else:  # r1, r2
+            edu_pairs = [
+                [(doc_key, e1_idx, e2_idx,
+                  ', '.join(str(x) for x in
+                            [dtree.labels[e1_idx], dtree.labels[e2_idx]]))
+                 for (e1_idx, e2_idx) in edu_pairs_doc]
+                for (doc_key, dtree), edu_pairs_doc
+                in zip(doc_key_dtrees, edu_pairs_docs)
+            ]
+        # TODO add the possibility to use functions that filter out pairs,
+        # like equivalence classes on pairs (ex: WMD is symmetric)
+        # or implications (ex: (e1, e2, r) => (e2, e1, UNRELATED))
+
+        # transform local index of EDU in doc into global index in the list
+        # of all EDUs from all docs
+        doc_lens = [0] + [len(dtree.edus)
+                          for doc_key, dtree in doc_key_dtrees[:-1]]
+        doc_offsets = np.cumsum(doc_lens)
+        edu_pairs = [[(doc_key, gov_idx, dep_idx, lbl,
+                       doc_offset + gov_idx, doc_offset + dep_idx)
+                      for doc_key, gov_idx, dep_idx, lbl
+                      in doc_edu_pairs]
+                     for doc_offset, doc_edu_pairs
+                     in zip(doc_offsets, edu_pairs)]
+        edu_pairs = list(itertools.chain.from_iterable(edu_pairs))
+        # WIP
+        # compute the WMD between the pairs of EDUs
+        edu_pairs_wmd = Parallel(n_jobs=n_jobs, verbose=verbose)(
+            delayed(wmd)(gov_idx_abs, dep_idx_abs)
+            for doc_key, gov_idx, dep_idx, lbl, gov_idx_abs, dep_idx_abs
+            in edu_pairs
+        )
+
+        wmd_strs = [
+            ("%s::%s::%.5f::(%s)--(%s)" %
+             (doc_key, lbl, sim, edu_txts[gov_idx_abs], edu_txts[dep_idx_abs]))
+            for (doc_key, gov_idx, dep_idx, lbl, gov_idx_abs, dep_idx_abs), sim
+            in zip(edu_pairs, edu_pairs_wmd)
+        ]
+        print('\n'.join(wmd_strs), file=outfile)
+        # end MOVE transform()
