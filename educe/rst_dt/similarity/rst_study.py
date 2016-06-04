@@ -207,8 +207,8 @@ if __name__ == '__main__':
     # WIP exclude file* files for paras
     doc_keys = [key.doc for key, doc in corpus_items]
     # WIP
-    # pairs of docs
     if sel_pairs == 'docs':
+        # pairs of documents
         doc_txts = [doc.text() for key, doc in corpus_items]
         # NB: we need to keep name "edu_vecs" so that wmd() has the right
         # ref
@@ -238,6 +238,7 @@ if __name__ == '__main__':
         )
         print('\n'.join(wmd_strs), file=outfile)
     elif sel_pairs == 'paras':
+        # pairs of paragraphs
         doc_txts = [doc.text() for key, doc in corpus_items]
         doc_paras = [(doc_key, para_idx, para)
                      for doc_key, doc_txt in zip(doc_keys, doc_txts)
@@ -256,32 +257,21 @@ if __name__ == '__main__':
             s = s.strip()
             return s[-1] == ':' and '\n' not in s
 
-        # WIP attempt at detecting sections:
-        # typically: incoming rel = 'Topic-Shift',
-        # outgoing rel = 'TextualOrganization'
-        def is_title_cased(tok_seq):
-            """True if a sequence of tokens is title-cased"""
-            title_optional = ['a', 'and', 'at', 'of', 'on', 'or', 'the', 'to']
-            return all(x[0].isupper() for x in tok_seq
-                       if (x[0].isalpha() and
-                           x not in title_optional))
-
-        def is_start_upper(tok_seq):
-            """True if a sequence starts with two upper-cased tokens"""
-            #return all(x.isupper() for x in tok_seq[:2])
-            return all(x.isupper() for x in
-                       [y for y in tok_seq if y.isalnum()][:2])
-
         for doc_key, para_idx, para in doc_paras:
             # dumb tokenizer
             para_toks = [x for x in para.split()]
-            # title-cased strings and strings whose start is upper-cased
-            # TODO for .edus and .dis, apply only to the first EDU of the
-            # span
-            if ((is_title_cased(para_toks) or
-                 is_start_upper(para_toks))):
-                print(doc_key, para_idx, para)
-        raise ValueError('Check me')
+            # dumb sentence splitter
+            para_sents = para.split('\n')
+            if (any(is_unique_sentence_colon(x) for x in para_sents)
+                or para_toks[0] in ['1.', '2.', '3.', '4.', '5.']
+                or para_toks[0] in ['1)', '2)', '3)', '4)', '5)']
+                or para_toks[0] == '--'
+                or para_sents[0][-1] == '--'):
+                # improve this...
+                print(doc_key, para_idx)
+                print(para)
+                print()
+        raise ValueError('Para check !')
         # end WIP sections
 
         # NB: we need to keep name "edu_vecs" so that wmd() has the right
@@ -312,6 +302,7 @@ if __name__ == '__main__':
         )
         print('\n'.join(wmd_strs), file=outfile)
     elif sel_pairs == 'sents':
+        # pairs of sentences
         doc_txts = [doc.text() for key, doc in corpus_items]
         doc_sents = [(doc_key, sent_idx, sent)
                      for doc_key, doc_txt in zip(doc_keys, doc_txts)
