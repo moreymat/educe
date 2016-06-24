@@ -106,9 +106,11 @@ PTB_WRONG_SENTENCE_SEG = [
 ]
 
 # docs for which the RST-WSJ contains erroneous EDU segmentation that
-# conflicts with the (here) correct sentence segmentation from the PTB
+# conflicts with correct segmentation in the PTB ; this is either
+# sentence segmentation or tokenization
 RST_WRONG_EDU_SEG = [
     'wsj_1123',
+    'wsj_1158',  # tokenization
     'wsj_1373',
     'wsj_2317',
     'wsj_2343',
@@ -117,26 +119,28 @@ RST_WRONG_EDU_SEG = [
 
 # PTB has a (virtual) fullstop after sentence-final abbreviation, eg.
 # he went to the U.S.
-_PTB_EXTRA_FULLSTOPS =\
-    [('06/wsj_0617.mrg', 966),
-     ('06/wsj_0695.mrg', 64),
-     ('07/wsj_0764.mrg', 882),  # aka file1
-     ('11/wsj_1101.mrg', 736),
-     ('11/wsj_1125.mrg', 222),
-     ('13/wsj_1318.mrg', 212),
-     ('13/wsj_1377.mrg', 790),
-     ('13/wsj_1390.mrg', 320),
-     ('19/wsj_1988.mrg', 476),
-     ('23/wsj_2303.mrg', 301),
-     ('23/wsj_2320.mrg', 85),
-     ('23/wsj_2320.mrg', 643),
-     ('23/wsj_2321.mrg', 46),
-     ('23/wsj_2398.mrg', 559)]
+_PTB_EXTRA_FULLSTOPS = [
+    ('06/wsj_0617.mrg', 966),
+    ('06/wsj_0695.mrg', 64),
+    ('07/wsj_0764.mrg', 882),  # aka file1
+    ('11/wsj_1101.mrg', 736),
+    ('11/wsj_1125.mrg', 222),
+    ('13/wsj_1318.mrg', 212),
+    ('13/wsj_1377.mrg', 790),
+    ('13/wsj_1390.mrg', 320),
+    ('19/wsj_1988.mrg', 476),
+    ('23/wsj_2303.mrg', 301),
+    ('23/wsj_2320.mrg', 85),
+    ('23/wsj_2320.mrg', 643),
+    ('23/wsj_2321.mrg', 46),
+    ('23/wsj_2398.mrg', 559)
+]
 
 
 # these specific fileid, token number combinations are skipped or rewritten
 # (prefix, subst)
 _PTB_SUBSTS_OTHER = {
+    # * bad (fileX) files
     # file1
     ('07/wsj_0764.mrg', 981): (None, ""),  # token in PTB missing from RST-WSJ
     ('07/wsj_0764.mrg', 982): (None, ""),  # token in PTB missing from RST-WSJ
@@ -159,19 +163,21 @@ _PTB_SUBSTS_OTHER = {
     ('21/wsj_2172.mrg', 1001): (None, "&amp;"),  # & in PTB, &amp; in RST-WSJ
     ('21/wsj_2172.mrg', 1250): (None, ""),  # token in PTB missing from RST-WSJ
     ('21/wsj_2172.mrg', 1280): (None, ""),  # token in PTB missing from RST-WSJ
-    # regular wsj_ files
+    # * regular (wsj_XXXX.out) files
     ('06/wsj_0675.mrg', 546): ("-", None),  # --
-    ('11/wsj_1139.mrg', 582): (">", None),  # insertion
+    ('11/wsj_1139.mrg', 582): ("> ", None),  # insertion
     ('11/wsj_1161.mrg', 845): ("<", None),  # insertion
     ('11/wsj_1171.mrg', 207): (None, "'"),   # backtick
     ('13/wsj_1303.mrg', 388): (None, ""),  # extra full stop
     ('13/wsj_1331.mrg', 930): (None, "`S"),
-    ('13/wsj_1367.mrg', 364): ("--", None),  # insertion
+    ('13/wsj_1367.mrg', 364): ("-- ", None),  # insertion
     ('13/wsj_1377.mrg', 4): (None, "")
 }
 
-_PTB_SUBSTS = dict([(_k, (None, "")) for _k in _PTB_EXTRA_FULLSTOPS] +
-                   list(_PTB_SUBSTS_OTHER.items()))
+_PTB_SUBSTS = dict(
+    [(_k, (None, "")) for _k in _PTB_EXTRA_FULLSTOPS]
+    + list(_PTB_SUBSTS_OTHER.items())
+)
 
 
 def _tweak_token(ptb_name):
@@ -233,7 +239,15 @@ class PtbParser(object):
     def tokenize(self, doc):
         """Tokenize the document text using the PTB gold annotation.
 
-        Return a tokenized document.
+        Parameters
+        ----------
+        doc: DocumentPlus
+            Rich representation of the document.
+
+        Returns
+        -------
+        doc: DocumentPlus
+            Rich representation of the document, with tokenization.
         """
         # get tokens from PTB
         ptb_name = _guess_ptb_name(doc.key)
@@ -255,12 +269,13 @@ class PtbParser(object):
         result = [_mk_token(t, s) for t, s in izip(tweaked2, spans)]
 
         # store in doc
-        doc.tkd_tokens.extend(result)
+        doc.set_tokens(result)
 
         return doc
 
     def parse(self, doc):
-        """
+        """Parse a document, using the gold PTB annotation.
+
         Given a document, return a list of educified PTB parse trees
         (one per sentence).
 
@@ -269,6 +284,17 @@ class PtbParser(object):
         associated with a span within the RST DT text.
 
         Note: does nothing if there is no associated PTB corpus entry.
+
+        Parameters
+        ----------
+        doc: DocumentPlus
+            Rich representation of the document.
+
+        Returns
+        -------
+        doc: DocumentPlus
+            Rich representation of the document, with syntactic
+            constituency trees.
         """
         # get PTB trees
         ptb_name = _guess_ptb_name(doc.key)
@@ -303,13 +329,7 @@ class PtbParser(object):
             lex_heads.append(lheads)
 
         # store trees in doc
-        doc.tkd_trees.extend(trees)
-        # store lexical heads in doc
-        # TODO move to DocumentPlus
-        doc.lex_heads = []
-        doc.lex_heads.append(None)
-        # end TODO
-        doc.lex_heads.extend(lex_heads)
+        doc.set_syn_ctrees(trees, lex_heads=lex_heads)
 
         return doc
 
@@ -340,6 +360,10 @@ def align_edus_with_sentences(edus, syn_trees, strict=False):
     -------
     edu2sent: list(int or None)
         Map from EDU to (0-based) sentence index or None.
+
+    TODO
+    ----
+    * [ ] rewrite a faster version using numpy
     """
     edu2sent = []
     for edu in edus:

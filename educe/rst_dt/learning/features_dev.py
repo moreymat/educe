@@ -5,6 +5,7 @@
 from __future__ import print_function
 
 from collections import Counter
+from functools import reduce
 import itertools
 import re
 
@@ -12,7 +13,6 @@ import numpy as np
 
 from .base import DocumentPlusPreprocessor
 from educe.ptb.annotation import strip_punctuation, syntactic_node_seq
-from educe.ptb.head_finder import find_edu_head
 from educe.rst_dt.lecsie import (load_lecsie_feats,
                                  LINE_FORMAT as LECSIE_LINE_FORMAT)
 from educe.stac.lexicon.pdtb_markers import (load_pdtb_markers_lexicon,
@@ -52,7 +52,7 @@ def build_doc_preprocessor():
 # single EDU features
 # ---------------------------------------------------------------------
 
-def extract_single_word(edu_info):
+def extract_single_word(doc, edu_info, para_info):
     """word features for the EDU"""
     try:
         words = edu_info['words']
@@ -107,7 +107,7 @@ def is_upper_entire(tok_seq):
     return all(x.upper() == x for x in tok_seq)
 
 
-def extract_single_typo(edu_info):
+def extract_single_typo(doc, edu_info, para_info):
     """typographical features for the EDU"""
     try:
         words = edu_info['words']
@@ -128,7 +128,7 @@ def extract_single_typo(edu_info):
 MARKER2RELS = load_pdtb_markers_lexicon(PDTB_MARKERS_FILE)
 
 
-def extract_single_pdtb_markers(edu_info):
+def extract_single_pdtb_markers(doc, edu_info, para_info):
     """Features on the presence of PDTB discourse markers in the EDU"""
     try:
         words = edu_info['words']
@@ -155,7 +155,7 @@ def extract_single_pdtb_markers(edu_info):
 # end NEW
 
 
-def extract_single_pos(edu_info):
+def extract_single_pos(doc, edu_info, para_info):
     """POS features for the EDU"""
     try:
         tags = edu_info['tags']
@@ -186,7 +186,7 @@ def extract_single_pos(edu_info):
             itertools.chain(tags[:2], tags[-1:])))
 
 
-def extract_single_brown(edu_info):
+def extract_single_brown(doc, edu_info, para_info):
     """Brown cluster features for the EDU"""
     try:
         brown_clusters = edu_info['brown_clusters']
@@ -204,7 +204,7 @@ def extract_single_brown(edu_info):
         yield ('bc_' + bc, occ)
 
 
-def extract_single_length(edu_info):
+def extract_single_length(doc, edu_info, para_info):
     """Sentence features for the EDU"""
     try:
         words = edu_info['words']
@@ -216,7 +216,7 @@ def extract_single_length(edu_info):
 
 
 # features on document structure
-def extract_single_sentence(edu_info):
+def extract_single_sentence(doc, edu_info, para_info):
     """Sentence features for the EDU"""
     try:
         offset = edu_info['edu_idx_in_sent']
@@ -246,8 +246,10 @@ def extract_single_sentence(edu_info):
         pass
 
 
-def extract_single_para(edu_info):
+def extract_single_para(doc, edu_info, para_info):
     """paragraph features for the EDU"""
+    # position of paragraph in doc
+    # * from beginning
     try:
         para_idx = edu_info['para_idx']
     except KeyError:
@@ -256,7 +258,7 @@ def extract_single_para(edu_info):
         if para_idx is not None:
             yield ('paragraph_id', para_idx)
             yield ('paragraph_id_div5', para_idx / 5)
-    # NEW position of paragraph in doc, from the end
+    # * from end
     try:
         para_rev_idx = edu_info['para_rev_idx']
     except KeyError:
@@ -264,18 +266,54 @@ def extract_single_para(edu_info):
     else:
         if para_rev_idx is not None:
             yield ('paragraph_rev_id', para_rev_idx)
+    # features on the surrounding paragraph
+    if False:
+        # WIP as of 2016-06-10
+        paras = doc.paragraphs
+        if paras is not None and para_idx is not None:
+            # FIXME impute para_idx where it is missing, in particular
+            # for fileX files ; this should be a function from sentence
+            # idx, possibly sentence length...
+            # baseline imputer: para_idx = sent_idx
+
+            # para = paras[para_idx]
+            # assert para.overlaps(edu)
+
+            # * first and last tokens of the paragraph
+            # aim: get potential triggers (trailing ':') of lists
+            # and markers of list items (and topic drifts?) (leading
+            # '1.', '1/', 'a-', '--' ...)
+            para_toks = para_info['tokens']
+            if para_toks:
+                # typical case for not para_toks: tokens in RST but not
+                # in PTB
+                yield ('para_w0', para_toks[0].word)
+                yield ('para_t0', para_toks[0].tag)
+                yield ('para_w-1', para_toks[-1].word)
+                yield ('para_t-1', para_toks[-1].tag)
+
+            # * syntactic characterization of paragraph
+            syn_nodes = para_info['syn_nodes']
+            if syn_nodes is not None:
+                yield ('SYN_para_type', tuple(x.label() for x in syn_nodes))
+        # end WIP
 
 
 # syntactic features
 
 
-def extract_single_syntax(edu_info):
+def extract_single_syntax(doc, edu_info, para_info):
     """syntactic features for the EDU"""
     try:
-        ptree = edu_info['ptree']
-        pheads = edu_info['pheads']
+        tree_idx = edu_info['tkd_tree_idx']
     except KeyError:
         return
+
+    if tree_idx is None:
+        return
+
+    ptree = doc.tkd_trees[tree_idx]
+    # pheads = doc.lex_heads[tree_idx]
 
     edu = edu_info['edu']
     tokens = edu_info['tokens']  # WIP
@@ -297,12 +335,8 @@ def extract_single_syntax(edu_info):
 
     # currently de-activated
     if False:
-        # tree positions (in the syn tree) of the words that are in the EDU
-        tpos_leaves_edu = [tpos_leaf
-                           for tpos_leaf in ptree.treepositions('leaves')
-                           if ptree[tpos_leaf].overlaps(edu)]
-        wanted = set(tpos_leaves_edu)
-        edu_head = find_edu_head(ptree, pheads, wanted)
+        # find EDU head
+        edu_head = edu_info['edu_head']
         if edu_head is not None:
             treepos_hn, treepos_hw = edu_head
             hlabel = ptree[treepos_hn].label()
@@ -345,11 +379,11 @@ def build_edu_feature_extractor():
     # syntax (EXPERIMENTAL)
     funcs.append(extract_single_syntax)
 
-    def _extract_all(edu_info):
+    def _extract_all(doc, edu_info, para_info):
         """inner helper because I am lost at sea here"""
         # TODO do this in a cleaner manner
         for fct in funcs:
-            for feat in fct(edu_info):
+            for feat in fct(doc, edu_info, para_info):
                 yield feat
 
     # extractor
@@ -378,9 +412,39 @@ class LecsieFeats(object):
                        for entry in load_lecsie_feats(lecsie_data_dir)}
 
     def fit(self, edu_pairs, y=None):
+        """Fit the feature extractor.
+
+        Currently a no-op.
+
+        Parameters
+        ----------
+        edu_pairs: TODO
+            TODO
+        y: TODO, optional
+            TODO
+
+        Returns
+        -------
+        self: TODO
+            TODO
+        """
         return self
 
     def transform(self, edu_pairs):
+        """Extract lecsie features for pairs of EDUs.
+
+        This is a generator.
+
+        Parameters
+        ----------
+        edu_pairs: TODO
+            TODO
+
+        Returns
+        -------
+        res: TODO
+            TODO
+        """
         lecsie_feats = self._feats
         for edu_info1, edu_info2 in edu_pairs:
             # retrieve doc name
@@ -389,13 +453,13 @@ class LecsieFeats(object):
             assert doc1 == doc2
             lecsie_doc_name = doc2[:-4] if doc2.endswith('.out') else doc2
             # retrieve span for both EDUs
-            s1 = edu_info1['edu'].span
-            s1_beg = s1.char_start
-            s1_end = s1.char_end
+            sent1 = edu_info1['edu'].span
+            s1_beg = sent1.char_start
+            s1_end = sent1.char_end
             num1 = edu_info1['edu'].num
-            s2 = edu_info2['edu'].span
-            s2_beg = s2.char_start
-            s2_end = s2.char_end
+            sent2 = edu_info2['edu'].span
+            s2_beg = sent2.char_start
+            s2_end = sent2.char_end
             num2 = edu_info2['edu'].num
             # WIP adjacency
             adjacent_pair = (abs(num1 - num2) == 1)
@@ -447,7 +511,7 @@ class LecsieFeats(object):
 # end EXPERIMENTAL
 
 
-def extract_pair_doc(edu_info1, edu_info2, edu_info_bwn):
+def extract_pair_doc(doc, edu_info1, edu_info2, edu_info_bwn):
     """Document-level tuple features"""
     edu_idx1 = edu_info1['edu'].num
     edu_idx2 = edu_info2['edu'].num
@@ -466,7 +530,7 @@ def extract_pair_doc(edu_info1, edu_info2, edu_info_bwn):
 
 # features on document structure: paragraphs and sentences
 
-def extract_pair_para(edu_info1, edu_info2, edu_info_bwn):
+def extract_pair_para(doc, edu_info1, edu_info2, edu_info_bwn):
     """Paragraph tuple features"""
     try:
         para_id1 = edu_info1['para_idx']
@@ -489,7 +553,7 @@ def extract_pair_para(edu_info1, edu_info2, edu_info_bwn):
         yield ('num_paragraphs_between_div3', (para_id1 - para_id2) / 3)
 
 
-def extract_pair_sent(edu_info1, edu_info2, edu_info_bwn):
+def extract_pair_sent(doc, edu_info1, edu_info2, edu_info_bwn):
     """Sentence tuple features"""
 
     sent_id1 = edu_info1['sent_idx']
@@ -542,15 +606,15 @@ def extract_pair_sent(edu_info1, edu_info2, edu_info_bwn):
 
 # syntax
 
-def extract_pair_syntax(edu_info1, edu_info2, edu_info_bwn):
+def extract_pair_syntax(doc, edu_info1, edu_info2, edu_info_bwn):
     """syntactic features for the pair of EDUs"""
     try:
-        ptree1 = edu_info1['ptree']
-        pheads1 = edu_info1['pheads']
-
-        ptree2 = edu_info2['ptree']
-        pheads2 = edu_info2['pheads']
+        tree_idx1 = edu_info1['tkd_tree_idx']
+        tree_idx2 = edu_info2['tkd_tree_idx']
     except KeyError:
+        return
+
+    if tree_idx1 is None or tree_idx2 is None:
         return
 
     edu1 = edu_info1['edu']
@@ -558,29 +622,25 @@ def extract_pair_syntax(edu_info1, edu_info2, edu_info_bwn):
 
     # determine the linear order of {EDU_1, EDU_2}
     if edu1.num < edu2.num:
-        edu_l = edu1
-        edu_r = edu2
+        # edu_l = edu1
+        # edu_r = edu2
         edu_info_l = edu_info1
         edu_info_r = edu_info2
     else:
-        edu_l = edu2
-        edu_r = edu1
+        # edu_l = edu2
+        # edu_r = edu1
         edu_info_l = edu_info2
         edu_info_r = edu_info1
 
     # intra-sentential case only
-    if ptree1 == ptree2:
-        ptree = ptree1
-        pheads = pheads1
+    if tree_idx1 == tree_idx2:
+        ptree = doc.tkd_trees[tree_idx1]
+        pheads = doc.lex_heads[tree_idx1]
 
         # * DS-LST features
         # find the head node of EDU1
-        # tree positions (in the syn tree) of the words that are in EDU1
-        tpos_leaves_edu1 = [tpos_leaf
-                            for tpos_leaf in ptree.treepositions('leaves')
-                            if ptree[tpos_leaf].overlaps(edu1)]
-        tpos_words1 = set(tpos_leaves_edu1)
-        edu1_head = find_edu_head(ptree, pheads, tpos_words1)
+        tpos_words1 = edu_info1['tpos_words']
+        edu1_head = edu_info1['edu_head']
         if edu1_head is not None:
             treepos_hn1, treepos_hw1 = edu1_head
             hlabel1 = ptree[treepos_hn1].label()
@@ -594,12 +654,8 @@ def extract_pair_syntax(edu_info1, edu_info2, edu_info_bwn):
                 aword1 = ptree[treepos_aw1].word
 
         # find the head node of EDU2
-        # tree positions (in the syn tree) of the words that are in EDU2
-        tpos_leaves_edu2 = [tpos_leaf
-                            for tpos_leaf in ptree.treepositions('leaves')
-                            if ptree[tpos_leaf].overlaps(edu2)]
-        tpos_words2 = set(tpos_leaves_edu2)
-        edu2_head = find_edu_head(ptree, pheads, tpos_words2)
+        tpos_words2 = edu_info2['tpos_words']
+        edu2_head = edu_info2['edu_head']
         if edu2_head is not None:
             treepos_hn2, treepos_hw2 = edu2_head
             hlabel2 = ptree[treepos_hn2].label()
@@ -646,7 +702,7 @@ def extract_pair_syntax(edu_info1, edu_info2, edu_info_bwn):
         # * syntactic nodes (WIP as of 2016-05-25)
         #   - interval between edu1 and edu2
         if edu_info_bwn:
-            bwn_edus = [x['edu'] for x in edu_info_bwn]
+            # bwn_edus = [x['edu'] for x in edu_info_bwn]
             bwn_tokens = list(itertools.chain.from_iterable(
                 x['tokens'] for x in edu_info_bwn))
             # 1. EDUs_bwn
@@ -663,7 +719,7 @@ def extract_pair_syntax(edu_info1, edu_info2, edu_info_bwn):
                        tuple(x.label() for x in syn_nodes_strip))
 
             # 2. EDU_L + EDUs_bwn + EDU_R
-            lbwnr_edus = [edu_l] + bwn_edus + [edu_r]
+            # lbwnr_edus = [edu_l] + bwn_edus + [edu_r]
             lbwnr_tokens = (edu_info_l['tokens']
                             + bwn_tokens
                             + edu_info_r['tokens'])
@@ -681,7 +737,7 @@ def extract_pair_syntax(edu_info1, edu_info2, edu_info_bwn):
                        tuple(x.label() for x in syn_nodes_strip))
 
             # 3. EDU_L + EDUs_bwn
-            lbwn_edus = [edu_l] + bwn_edus
+            # lbwn_edus = [edu_l] + bwn_edus
             lbwn_tokens = (edu_info_l['tokens']
                            + bwn_tokens)
             # spanning nodes
@@ -698,7 +754,7 @@ def extract_pair_syntax(edu_info1, edu_info2, edu_info_bwn):
                        tuple(x.label() for x in syn_nodes_strip))
 
             # 4. EDUs_bwn + EDU_R
-            bwnr_edus = bwn_edus + [edu_r]
+            # bwnr_edus = bwn_edus + [edu_r]
             bwnr_tokens = (bwn_tokens
                            + edu_info_r['tokens'])
             # spanning nodes
@@ -724,20 +780,27 @@ def extract_pair_syntax(edu_info1, edu_info2, edu_info_bwn):
     # TODO fire a feature with the pair of labels of the head nodes of EDU1
     # and EDU2 ?
     else:
+        ptree1 = doc.tkd_trees[tree_idx1]
+        # pheads1 = doc.lex_heads[tree_idx1]
+
+        ptree2 = doc.tkd_trees[tree_idx2]
+        # pheads2 = doc.lex_heads[tree_idx2]
+
         # pair of sentence types, hopefully informative esp. for non-S
         yield ('SYN_sent_type_pair', (ptree1.label(),
                                       ptree2.label()))
         # sentence types in between
-        ptree_l = edu_info_l['ptree']
-        ptree_r = edu_info_r['ptree']
+        ptree_l = edu_info_l['tkd_tree_idx']
+        ptree_r = edu_info_r['tkd_tree_idx']
         try:
             ptrees_lbwnr = ([ptree_l]
-                            + [x['ptree'] for x in edu_info_bwn]
+                            + [x['tkd_tree_idx'] for x in edu_info_bwn]
                             + [ptree_r])
         except KeyError:
             pass
         else:
-            ptrees_lbwnr = [x for x, _ in itertools.groupby(ptrees_lbwnr)]
+            ptrees_lbwnr = [doc.tkd_trees[x] for x, _
+                            in itertools.groupby(ptrees_lbwnr)]
             stypes_lbwnr = [x.label() for x in ptrees_lbwnr]
             yield ('SYN_sent_type_lbwnr', tuple(stypes_lbwnr))
             yield ('SYN_sent_type_bwn', tuple(stypes_lbwnr[1:-1]))
@@ -767,11 +830,11 @@ def build_pair_feature_extractor(lecsie_data_dir=None):
         lecsie_feats = LecsieFeats(lecsie_data_dir)
         funcs.append(lambda e1, e2: lecsie_feats.transform([(e1, e2)]))
 
-    def _extract_all(edu_info1, edu_info2, edu_info_bwn):
+    def _extract_all(doc, edu_info1, edu_info2, edu_info_bwn):
         """inner helper because I am lost at sea here, again"""
         # TODO do this in a cleaner manner
         for fct in funcs:
-            for feat in fct(edu_info1, edu_info2, edu_info_bwn):
+            for feat in fct(doc, edu_info1, edu_info2, edu_info_bwn):
                 yield feat
 
     # extractor
