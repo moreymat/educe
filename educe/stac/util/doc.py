@@ -412,3 +412,94 @@ def unannotated_key(key):
     ukey.stage = 'unannotated'
     ukey.annotator = None
     return ukey
+
+
+def delete_text_at_span(doc, span, minor=True):
+    """Delete text at `span` in `doc`.
+
+    Parameters
+    ----------
+    doc : Document
+        Original document
+    span : Span
+        Span of the substitution site
+    minor : boolean, default True
+        If True, the text deletion is considered minor and annotations
+        are kept as they are (with shifted spans) ; otherwise unit
+        annotations and discourse relations are deleted.
+
+    Returns
+    -------
+    doc2 : Document
+        Updated document
+    del_annos : set of Annotation
+        Deleted annotations
+    """
+    def shift_anno(anno, offset, point):
+        """Get a shifted copy of an annotation"""
+        if not isinstance(anno, Unit):
+            return anno
+
+        anno_span = anno.text_span()
+        if anno_span.char_start >= point:
+            # if the annotation is entirely after the deletion site,
+            # shift the whole span
+            anno.span = anno_span.shift(offset)
+        elif anno_span.char_end >= point:
+            # if the annotation straddles the substitution site,
+            # stretch (shift its end)
+            anno.span = Span(anno_span.char_start,
+                             anno_span.char_end + offset)
+        return anno
+
+    # compute text update
+    old_txt = doc.text()
+    new_txt = old_txt[:span.char_start] + old_txt[span.char_end:]
+    offset = len(new_txt) - len(old_txt)
+    point = span.char_end
+    # create a copy of the doc
+    doc2 = copy.deepcopy(doc)
+    evil_set_text(doc2, new_txt)
+    # shift or stretch all units
+    # if not minor, skip annotations in the substitution site so that
+    # they get lost
+    if minor:
+        doc2.units = [shift_anno(x, offset, point)
+                      for x in doc2.units]
+        doc2.schemas = [shift_anno(x, offset, point)
+                        for x in doc2.schemas]
+        doc2.relations = [shift_anno(x, offset, point)
+                          for x in doc2.relations]
+        del_annos = (set(), set(), set())
+    else:
+        deleted_units = set(x for x in doc2.units
+                            if span.encloses(x.text_span()))
+        # fixed point deletion of schemas and relations
+        deleted_schms = set(x for x in doc2.schemas
+                            if any(y in deleted_units for y in x.members))
+        deleted_rels = set(x for x in doc2.relations
+                           if (x.source in deleted_units or
+                               x.target in deleted_units))
+        new_del_schms = deleted_schms
+        new_del_rels = deleted_rels
+        while new_del_schms or new_del_rels:
+            next_del_schms = set(x for x in doc2.schemas
+                                 if any(y in new_del_schms
+                                        for y in x.members))
+            next_del_rels = set(x for x in doc2.relations
+                                if (x.source in new_del_rels or
+                                    x.target in new_del_rels))
+            deleted_schms.update(next_del_schms)
+            deleted_rels.update(next_del_rels)
+            new_del_schms = next_del_schms
+            new_del_rels = next_del_rels
+        # shift everything we keep
+        doc2.units = [shift_anno(x, offset, point) for x in doc2.units
+                      if x not in deleted_units]
+        doc2.schemas = [shift_anno(x, offset, point) for x in doc2.schemas
+                        if x not in deleted_schms]
+        doc2.relations = [shift_anno(x, offset, point) for x in doc2.relations
+                          if x not in deleted_rels]
+        # TODO print deleted_units, deleted_rels, deleted_schms
+        del_annos = (deleted_units, deleted_schms, deleted_rels)
+    return doc2, del_annos
