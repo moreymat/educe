@@ -10,6 +10,7 @@ stac-oneoff subcommands
 from . import (clean_emoticons,
                clean_schemas,
                clean_dialogue_acts,
+               clean_whitespaces,
                delete_text,
                replace_text,
                weave)
@@ -22,6 +23,7 @@ SUBCOMMAND_SECTIONS = [
     ('Cleanups',
      [clean_emoticons,
       clean_schemas,
+      clean_whitespaces,
       clean_dialogue_acts]),
     ('Invasive',
      [weave,
