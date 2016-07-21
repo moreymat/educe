@@ -118,21 +118,24 @@ def load_labels(f):
 
 
 def dump_all(X_gen, y_gen, f, class_mapping, docs, instance_generator):
-    """Dump a whole dataset: features (in svmlight) and EDU pairs
+    """Dump a whole dataset: features (in svmlight) and EDU pairs.
 
-    class_mapping is a mapping from label to int
-
-    :type X_gen: iterable of int arrays
-    :type y_gen: iterable of int
-    :param f: output features file path
-    :param class_mapping: dict(string, int)
-    :param instance_generator: function that returns an iterable
-                               of pairs given a document
+    Parameters
+    ----------
+    X_gen: iterable of int arrays
+        TODO
+    y_gen: iterable of int
+        TODO
+    f: TODO
+        Output features file path
+    class_mapping: dict(string, int)
+        Mapping from label to int
+    docs: iterable of DocumentPlus
+        Documents
+    instance_generator: function from DocumentPlus to iterable of pairs
+        Function that generates an iterable of pairs from a
+        DocumentPlus.
     """
-    # the labelset will be written in a comment at the beginning of the
-    # svmlight file
-    comment = labels_comment(class_mapping)
-
     # dump: EDUs, pairings, vectorized pairings with label
     edu_input_file = f + '.edu_input'
     dump_edu_input_file(docs, edu_input_file)
@@ -141,4 +144,7 @@ def dump_all(X_gen, y_gen, f, class_mapping, docs, instance_generator):
     dump_pairings_file((instance_generator(doc) for doc in docs),
                        pairings_file)
 
+    # the labelset will be written in a comment at the beginning of the
+    # svmlight file
+    comment = labels_comment(class_mapping)
     dump_svmlight_file(X_gen, y_gen, f, comment=comment)
