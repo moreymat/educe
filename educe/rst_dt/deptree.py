@@ -12,7 +12,7 @@ import itertools
 
 import numpy as np
 
-from .annotation import EDU
+from .annotation import EDU, _binarize
 from ..internalutil import treenode
 
 
@@ -42,9 +42,24 @@ DEFAULT_RANK = 0
 
 
 class RstDepTree(object):
-    """RST dependency tree"""
+    """RST dependency tree
 
-    def __init__(self, edus=[], origin=None):
+    Parameters
+    ----------
+    edus: list of EDU
+        List of the EDUs of this document.
+    origin: Document?, optional
+        TODO
+    nary_enc: one of {'chain', 'tree'}, optional
+        Type of encoding used for n-ary relations: 'chain' or 'tree'.
+        This determines for example how fragmented EDUs are resolved.
+    """
+
+    def __init__(self, edus=[], origin=None, nary_enc='chain'):
+        # WIP 2016-07-20 nary_enc to resolve fragmented EDUs
+        if nary_enc not in ['chain', 'tree']:
+            raise ValueError("nary_enc must be in {'tree', 'chain'}")
+        self.nary_enc = nary_enc
         # FIXME find a clean way to avoid generating a new left padding EDU
         # here
         _lpad = EDU.left_padding()
@@ -209,6 +224,45 @@ class RstDepTree(object):
         sorted_deps = [i for rk, i in ranked_deps]
         return sorted_deps
 
+    def fragmented_edus(self):
+        """Get the fragmented EDUs in this RST tree.
+
+        Fragmented EDUs are made of two or more EDUs linked by
+        "same-unit" relations.
+
+        Returns
+        -------
+        frag_edus: list of tuple of int
+            Each fragmented EDU is given as a tuple of the indices of
+            the fragments.
+        """
+        frag_edus = []
+        open_ends = []  # companion to frag_edus: open end
+
+        su_deps = [(gov_idx, dep_idx) for dep_idx, (gov_idx, lbl)
+                   in enumerate(zip(self.heads[1:], self.labels[1:]),
+                                start=1)
+                   if lbl.lower() == 'same-unit']
+        for gov_idx, dep_idx in su_deps:
+            try:
+                # search for an existing fragmented EDU this same-unit
+                # could belong to
+                open_frag = open_ends.index(gov_idx)
+            except ValueError:
+                # start a new fragmented EDU
+                frag_edus.append([gov_idx, dep_idx])
+                if self.nary_enc == 'chain':
+                    open_ends.append(dep_idx)
+                else:  # 'tree'
+                    open_ends.append(gov_idx)
+            else:
+                # append dep_idx to an existing fragmented EDU
+                frag_edus[open_frag].append(dep_idx)
+                # NB: if "tree", no need to update the open end
+                if self.nary_enc == 'chain':
+                    open_ends[open_frag] = dep_idx
+        return [tuple(x) for x in frag_edus]
+
     def real_roots_idx(self):
         """Get the list of the indices of the real roots"""
         return self.deps(_ROOT_HEAD)
@@ -250,7 +304,9 @@ class RstDepTree(object):
     def from_simple_rst_tree(cls, rtree):
         """Converts a ̀SimpleRSTTree` to an `RstDepTree`"""
         edus = sorted(rtree.leaves(), key=lambda x: x.span.char_start)
-        dtree = cls(edus)
+        # building a SimpleRSTTree requires to binarize the original
+        # RSTTree first, so 'chain' is the only possibility
+        dtree = cls(edus, nary_enc='chain')
 
         def walk(tree):
             """
@@ -295,10 +351,19 @@ class RstDepTree(object):
         return dtree
 
     @classmethod
-    def from_rst_tree(cls, rtree):
-        """Converts an ̀RSTTree` to an `RstDepTree`"""
+    def from_rst_tree(cls, rtree, nary_enc='tree'):
+        """Converts an ̀RSTTree` to an `RstDepTree`.
+
+        Parameters
+        ----------
+        nary_enc: one of {'chain', 'tree'}
+            If 'chain', the given RSTTree is binarized first.
+        """
         edus = sorted(rtree.leaves(), key=lambda x: x.span.char_start)
-        dtree = cls(edus)
+        # if 'chain', binarize the tree first
+        if nary_enc == 'chain':
+            rtree = _binarize(rtree)
+        dtree = cls(edus, nary_enc=nary_enc)
 
         def walk(tree):
             """
