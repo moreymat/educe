@@ -406,16 +406,94 @@ class DocumentPlus(object):
                      if epair[0] != epair[1]]
         return all_pairs
 
-    def relations(self, edu_pairs):
+    def du_pairs(self, cdus=None):
+        """Generate pairs of DUs, from/to each of the CDUs.
+
+        Each pair is from/to a CDU and an EDU or another CDU outside its
+        direct span (first EDU, last EDU).
+
+        Parameters
+        ----------
+        cdus: list of tuples of strings, optional
+            List of CDUs, each CDU is described by the identifiers
+            of its member EDUs. If none is given, this calls
+            `all_edu_pairs`.
+
+        Returns
+        -------
+        du_pairs: list of pairs of DUs
+            List of pairs of DUs.
+        """
+        if cdus is None or not cdus:
+            return []
+
+        edus = self.edus
+        du_pairs = []
+        # compute the span of each CDU: index of first and last EDU
+        cdu_span_beg = [int(x[1][0].rsplit('_', 1)[1]) for x in cdus]
+        cdu_span_end = [int(x[1][-1].rsplit('_', 1)[1]) for x in cdus]
+        spanned_edus = [set(range(x_beg, x_end + 1)) for x_beg, x_end
+                        in zip(cdu_span_beg, cdu_span_end)]
+        # to a CDU, from an EDU outside its span
+        du_pairs.extend((edus[j], cdu)
+                        for cdu, sp_edus in zip(cdus, spanned_edus)
+                        for j in range(0, len(edus))
+                        if j not in sp_edus)
+        # from a CDU, to an EDU outside its span
+        du_pairs.extend((cdu, edus[j])
+                        for cdu, sp_edus in zip(cdus, spanned_edus)
+                        for j in range(1, len(edus))
+                        if j not in sp_edus)
+        # between two CDUs whose EDU spans are disjoint
+        du_pairs.extend((cdus[i], cdus[j])
+                        for i, j in itertools.permutations(
+                                range(len(cdus)), 2)
+                        if not spanned_edus[i].intersection(spanned_edus[j]))
+        # DEBUG?
+        return du_pairs
+
+    def relations(self, du_pairs):
         """Get the relation that holds in each of the edu_pairs"""
         if not self.deptree:
-            return [None for epair in edu_pairs]
+            return [None for epair in du_pairs]
 
         rels = {(src, tgt): rel
                 for src, tgt, rel in self.deptree.get_dependencies()}
-        erels = [rels.get(epair, 'UNRELATED')
-                 for epair in edu_pairs]
+        # WIP fragmented EDUs: map from identifier to EDU
+        id2edu = {e.identifier(): e for e in self.edus}
+
+        erels = []
+        for src, tgt in du_pairs:
+            # WIP fragmented EDUs: as a first approximation, generate an
+            # arc to/from the CDU (fragmented EDU, really) for each arc
+            # from/to its leftmost member
+            # FIXME use the rank to distinguish arcs from the CDU or
+            # from its first member:
+            # for all e_2(X, Y), if there exists e_1(X, Z) such that
+            # label(e_1) == "same-unit" and rank(e_2) > rank(e_1),
+            # then e_2 is on the CDU, otherwise it's on the EDU
+            edu_src = id2edu[src[1][0]] if isinstance(src, tuple) else src
+            edu_tgt = id2edu[tgt[1][0]] if isinstance(tgt, tuple) else tgt
+            epair = (edu_src, edu_tgt)
+            erels.append(rels.get(epair, 'UNRELATED'))
         return erels
+
+    def same_unit_candidates(self):
+        """Generate all EDU pairs that could be a same-unit.
+
+        We use the following filters:
+        * right-attachment: i < j,
+        * same sentence: edu2sent[i] == edu2sent[j],
+        * len > 1: i + 1 < j
+        """
+        edus = self.edus
+        edu2sent = self.edu2sent
+        # combinations() generates right-attachment candidates only
+        su_cands = [(edus[i], edus[j]) for i, j
+                    in itertools.combinations(range(0, len(edus)), 2)
+                    if (i + 1 < j
+                        and edu2sent[i] == edu2sent[j])]
+        return su_cands
 
     def set_syn_ctrees(self, tkd_trees, lex_heads=None):
         """Set syntactic constituency trees for this document.

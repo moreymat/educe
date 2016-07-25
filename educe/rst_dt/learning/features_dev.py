@@ -4,7 +4,7 @@
 
 from __future__ import print_function
 
-from collections import Counter
+from collections import Counter, defaultdict
 from functools import reduce
 import itertools
 import re
@@ -13,6 +13,7 @@ import numpy as np
 
 from .base import DocumentPlusPreprocessor
 from educe.ptb.annotation import strip_punctuation, syntactic_node_seq
+from educe.ptb.head_finder import find_edu_head
 from educe.rst_dt.lecsie import (load_lecsie_feats,
                                  LINE_FORMAT as LECSIE_LINE_FORMAT)
 from educe.stac.lexicon.pdtb_markers import (load_pdtb_markers_lexicon,
@@ -52,10 +53,11 @@ def build_doc_preprocessor():
 # single EDU features
 # ---------------------------------------------------------------------
 
-def extract_single_word(doc, edu_info, para_info):
-    """word features for the EDU"""
+def extract_single_word(doc, du_info, para_info):
+    """word features for the DU"""
     try:
-        words = edu_info['words']
+        words = list(itertools.chain.from_iterable(
+            edu_info['words'] for edu_info in du_info))
     except KeyError:
         return
 
@@ -107,10 +109,11 @@ def is_upper_entire(tok_seq):
     return all(x.upper() == x for x in tok_seq)
 
 
-def extract_single_typo(doc, edu_info, para_info):
+def extract_single_typo(doc, du_info, para_info):
     """typographical features for the EDU"""
     try:
-        words = edu_info['words']
+        words = list(itertools.chain.from_iterable(
+            edu_info['words'] for edu_info in du_info))
     except KeyError:
         return
 
@@ -128,10 +131,11 @@ def extract_single_typo(doc, edu_info, para_info):
 MARKER2RELS = load_pdtb_markers_lexicon(PDTB_MARKERS_FILE)
 
 
-def extract_single_pdtb_markers(doc, edu_info, para_info):
+def extract_single_pdtb_markers(doc, du_info, para_info):
     """Features on the presence of PDTB discourse markers in the EDU"""
     try:
-        words = edu_info['words']
+        words = list(itertools.chain.from_iterable(
+            edu_info['words'] for edu_info in du_info))
     except KeyError:
         return
 
@@ -155,10 +159,11 @@ def extract_single_pdtb_markers(doc, edu_info, para_info):
 # end NEW
 
 
-def extract_single_pos(doc, edu_info, para_info):
+def extract_single_pos(doc, du_info, para_info):
     """POS features for the EDU"""
     try:
-        tags = edu_info['tags']
+        tags = list(itertools.chain.from_iterable(
+            edu_info['tags'] for edu_info in du_info))
     except KeyError:
         return
 
@@ -186,10 +191,11 @@ def extract_single_pos(doc, edu_info, para_info):
             itertools.chain(tags[:2], tags[-1:])))
 
 
-def extract_single_brown(doc, edu_info, para_info):
+def extract_single_brown(doc, du_info, para_info):
     """Brown cluster features for the EDU"""
     try:
-        brown_clusters = edu_info['brown_clusters']
+        brown_clusters = list(itertools.chain.from_iterable(
+            edu_info['brown_clusters'] for edu_info in du_info))
     except KeyError:
         return
 
@@ -204,10 +210,11 @@ def extract_single_brown(doc, edu_info, para_info):
         yield ('bc_' + bc, occ)
 
 
-def extract_single_length(doc, edu_info, para_info):
+def extract_single_length(doc, du_info, para_info):
     """Sentence features for the EDU"""
     try:
-        words = edu_info['words']
+        words = list(itertools.chain.from_iterable(
+            edu_info['words'] for edu_info in du_info))
     except KeyError:
         return
 
@@ -216,56 +223,79 @@ def extract_single_length(doc, edu_info, para_info):
 
 
 # features on document structure
-def extract_single_sentence(doc, edu_info, para_info):
+def extract_single_sentence(doc, du_info, para_info):
     """Sentence features for the EDU"""
     try:
-        offset = edu_info['edu_idx_in_sent']
+        offset = du_info[0]['edu_idx_in_sent']
         if offset is not None:
             yield ('num_edus_from_sent_start', offset)
 
-        rev_offset = edu_info['edu_rev_idx_in_sent']
+        rev_offset = du_info[-1]['edu_rev_idx_in_sent']
         if rev_offset is not None:
             yield ('num_edus_to_sent_end', rev_offset)
 
         # position of sentence in doc
-        sent_id = edu_info['sent_idx']
-        if sent_id is not None:
-            yield ('sentence_id', sent_id)
+        sent_ids = [edu_info['sent_idx'] for edu_info in du_info]
+        if not any(x is None for x in sent_ids):
+            yield ('sentence_id',
+                   (tuple(sorted(set(x for x in sent_ids)))
+                    if len(set(sent_ids)) > 1
+                    else sent_ids[0]))
         # NEW position of sentence in doc, from the end
-        sent_rev_id = edu_info['sent_rev_idx']
-        if sent_rev_id is not None:
-            yield ('sentence_rev_id', sent_rev_id)
+        sent_rev_ids = [edu_info['sent_rev_idx'] for edu_info in du_info]
+        if not any(x is None for x in sent_rev_ids):
+            yield ('sentence_rev_id',
+                   (tuple(sorted(set(x for x in sent_rev_ids)))
+                    if len(set(sent_rev_ids)) > 1
+                    else sent_rev_ids[0]))
+    except KeyError:
+        pass
+
+
+def extract_single_para(doc, du_info, para_info):
+    """paragraph features for the DU"""
+    # position of DU in paragraph
+    try:
+        offset_para = du_info[0]['edu_idx_in_para']
+        if offset_para is not None:
+            yield ('num_edus_from_para_start', offset_para)
     except KeyError:
         pass
 
     try:
-        rev_offset_para = edu_info['edu_rev_idx_in_para']
+        rev_offset_para = du_info[-1]['edu_rev_idx_in_para']
         if rev_offset_para is not None:
             yield ('num_edus_to_para_end', rev_offset_para)
     except KeyError:
         pass
 
-
-def extract_single_para(doc, edu_info, para_info):
-    """paragraph features for the EDU"""
     # position of paragraph in doc
     # * from beginning
     try:
-        para_idx = edu_info['para_idx']
+        para_idc = [edu_info['para_idx'] for edu_info in du_info]
     except KeyError:
         pass
     else:
-        if para_idx is not None:
-            yield ('paragraph_id', para_idx)
-            yield ('paragraph_id_div5', para_idx / 5)
+        if not any(x is None for x in para_idc):
+            yield ('paragraph_id',
+                   (tuple(sorted(set(x for x in para_idc)))
+                    if len(set(para_idc)) > 1
+                    else para_idc[0]))
+            yield ('paragraph_id_div5',
+                   (tuple(sorted(set(x / 5 for x in para_idc)))
+                    if len(set(para_idc)) > 1
+                    else para_idc[0] / 5))
     # * from end
     try:
-        para_rev_idx = edu_info['para_rev_idx']
+        para_rev_idc = [edu_info['para_rev_idx'] for edu_info in du_info]
     except KeyError:
         pass
     else:
-        if para_rev_idx is not None:
-            yield ('paragraph_rev_id', para_rev_idx)
+        if not any(x is None for x in para_rev_idc):
+            yield ('paragraph_rev_id',
+                   (tuple(sorted(set(x for x in para_rev_idc)))
+                    if len(set(para_rev_idc)) > 1
+                    else para_rev_idc[0]))
     # features on the surrounding paragraph
     if False:
         # WIP as of 2016-06-10
@@ -302,39 +332,55 @@ def extract_single_para(doc, edu_info, para_info):
 # syntactic features
 
 
-def extract_single_syntax(doc, edu_info, para_info):
-    """syntactic features for the EDU"""
+def extract_single_syntax(doc, du_info, para_info):
+    """syntactic features for the DU"""
     try:
-        tree_idx = edu_info['tkd_tree_idx']
+        tree_idc = [edu_info['tkd_tree_idx'] for edu_info in du_info]
     except KeyError:
         return
 
-    if tree_idx is None:
+    if any(x is None for x in tree_idc):
         return
 
-    ptree = doc.tkd_trees[tree_idx]
+    ptrees = [doc.tkd_trees[x] for x in tree_idc]
+    unique_ptrees = [doc.tkd_trees[x] for x, _
+                     in itertools.groupby(tree_idc)]
     # pheads = doc.lex_heads[tree_idx]
 
-    edu = edu_info['edu']
-    tokens = edu_info['tokens']  # WIP
-
     # WIP 2016-06-02: type of sentence, hopefully informative for non-S
-    yield ('SYN_sent_type', ptree.label())
+    yield ('SYN_sent_type',
+           (tuple(ptree.label() for ptree in unique_ptrees)
+            if len(unique_ptrees) > 1
+            else unique_ptrees[0].label()))
 
     # spanning nodes for the EDU
-    syn_nodes = syntactic_node_seq(ptree, tokens)
+    syn_nodes = []
+    syn_nodes_nopunc = []
+    for tree_idx, grp in itertools.groupby(
+            enumerate(tree_idc), key=lambda x: x[1]):
+        # store the relative index of each EDU in this group, for
+        # retrieval of their tokens
+        rel_idc = [x[0] for x in grp]
+        # group EDUs from the same sentence
+        ptree = doc.tkd_trees[tree_idx]
+        tokens = list(itertools.chain.from_iterable(
+            du_info[rel_idx]['tokens'] for rel_idx in rel_idc))
+        syn_nodes.extend(syntactic_node_seq(ptree, tokens))
+        # variant, stripped from leading and trailing punctuations
+        tokens_strip_punc = strip_punctuation(tokens)
+        syn_nodes_nopunc.extend(syntactic_node_seq(ptree, tokens_strip_punc))
+        
     if syn_nodes:
         yield ('SYN_nodes',
                tuple(x.label() for x in syn_nodes))
     # variant, stripped from leading and trailing punctuations
-    tokens_strip_punc = strip_punctuation(tokens)
-    syn_nodes_nopunc = syntactic_node_seq(ptree, tokens_strip_punc)
     if syn_nodes_nopunc:
         yield ('SYN_nodes_nopunc',
                tuple(x.label() for x in syn_nodes_nopunc))
 
     # currently de-activated
     if False:
+        edu = edu_info['edu']
         # find EDU head
         edu_head = edu_info['edu_head']
         if edu_head is not None:
@@ -511,93 +557,110 @@ class LecsieFeats(object):
 # end EXPERIMENTAL
 
 
-def extract_pair_doc(doc, edu_info1, edu_info2, edu_info_bwn):
+def extract_pair_doc(doc, du_info1, du_info2, edu_info_bwn):
     """Document-level tuple features"""
-    edu_idx1 = edu_info1['edu'].num
-    edu_idx2 = edu_info2['edu'].num
+    edus1_num = [edu_info['edu'].num for edu_info in du_info1]
+    edus2_num = [edu_info['edu'].num for edu_info in du_info2]
 
     # direction of attachment: attach_right
-    attach_right = edu_idx1 < edu_idx2
+    attach_right = edus1_num[-1] < edus2_num[0]
     yield ('attach_right', attach_right)
 
     # absolute distance
     # this feature is more efficient when split in 4 features, for
     # every combination of the direction of attachment and
     # intra/inter-sentential status
-    dist_edus = abs(edu_idx1 - edu_idx2)
+    dist_edus = (edus2_num[0] - edus1_num[-1]
+                 if edus1_num[-1] < edus2_num[0]
+                 else edus1_num[0] - edus2_num[-1])
     yield ('dist_edus', dist_edus)
 
 
 # features on document structure: paragraphs and sentences
 
-def extract_pair_para(doc, edu_info1, edu_info2, edu_info_bwn):
+def extract_pair_para(doc, du_info1, du_info2, edu_info_bwn):
     """Paragraph tuple features"""
     try:
-        para_id1 = edu_info1['para_idx']
-        para_id2 = edu_info2['para_idx']
+        para_ids1 = [edu_info['para_idx'] for edu_info in du_info1]
+        para_ids2 = [edu_info['para_idx'] for edu_info in du_info2]
     except KeyError:
         return
 
-    if para_id1 is not None and para_id2 is not None:
-        abs_para_dist = abs(para_id1 - para_id2)
-        yield ('dist_para_abs', abs_para_dist)
-
-        if para_id1 < para_id2:  # right attachment (gov before dep)
-            yield ('dist_para_right', abs_para_dist)
-        elif para_id1 > para_id2:
-            yield ('dist_para_left', abs_para_dist)
+    if not any(x is None for x in itertools.chain(para_ids1, para_ids2)):
+        if para_ids1[-1] < para_ids2[0]:  # right attachment to another para
+            para_dist = para_ids1[-1] - para_ids2[0]
+            yield ('dist_para_right', abs(para_dist))
+        elif para_ids2[-1] < para_ids1[0]:
+            para_dist = para_ids1[0] - para_ids2[-1]
+            yield ('dist_para_left', abs(para_dist))
         else:
+            # if the two DUs have a paragraph in common, consider they are
+            # in the same
+            para_dist = 0
             yield ('same_para', True)
 
+        yield ('dist_para_abs', abs(para_dist))
+
         # TODO: remove and see what happens
-        yield ('num_paragraphs_between_div3', (para_id1 - para_id2) / 3)
+        yield ('num_paragraphs_between_div3', abs(para_dist) / 3)
 
 
-def extract_pair_sent(doc, edu_info1, edu_info2, edu_info_bwn):
+def extract_pair_sent(doc, du_info1, du_info2, edu_info_bwn):
     """Sentence tuple features"""
 
-    sent_id1 = edu_info1['sent_idx']
-    sent_id2 = edu_info2['sent_idx']
+    sent_ids1 = [edu_info['sent_idx'] for edu_info in du_info1]
+    sent_ids2 = [edu_info['sent_idx'] for edu_info in du_info2]
 
     # sentenceID
-    if sent_id1 is not None and sent_id2 is not None:
-        yield ('same_sentence', (sent_id1 == sent_id2))
+    if not any (x is None for x in itertools.chain(sent_ids1, sent_ids2)):
+        # if the two DUs have at least one sentence in common, consider
+        # they belong to the same sentence
+        yield ('same_sentence',
+               len(set(sent_ids1).intersection(set(sent_ids2))) > 0)
 
         # current best config: rel_dist + L/R_bools
         # abs_dist does not seem to work well for inter-sent
+        if sent_ids1[-1] < sent_ids2[0]:
+            # right attachment (gov < dep)
+            dist_sent = sent_ids1[-1] - sent_ids2[0]
+            yield ('sent_right', True)
+        elif sent_ids2[-1] < sent_ids1[0]:
+            # left attachment
+            dist_sent = sent_ids1[0] - sent_ids2[-1]
+            yield ('sent_left', True)
+        else:
+            dist_sent = 0
 
         # rel dist
-        yield ('dist_sent', sent_id1 - sent_id2)
+        yield ('dist_sent', dist_sent)
 
-        # L/R booleans
-        if sent_id1 < sent_id2:  # right attachment (gov < dep)
-            yield ('sent_right', True)
-        elif sent_id1 > sent_id2:  # left attachment
-            yield ('sent_left', True)
-
-        yield ('sentence_id_diff_div3', (sent_id1 - sent_id2) / 3)
+        yield ('sentence_id_diff_div3', dist_sent / 3)
 
     # offset features
-    offset1 = edu_info1['edu_idx_in_sent']
-    offset2 = edu_info2['edu_idx_in_sent']
+    # we take the offset of the first EDU of each DU (approximation?)
+    offset1 = du_info1[0]['edu_idx_in_sent']
+    offset2 = du_info2[0]['edu_idx_in_sent']
     if offset1 is not None and offset2 is not None:
         # offset diff
-        yield ('offset_diff', offset1 - offset2)
-        yield ('offset_diff_div3', (offset1 - offset2) / 3)
+        offset_diff = offset1 - offset2
+        yield ('offset_diff', offset_diff)
+        yield ('offset_diff_div3', offset_diff / 3)
         # offset pair
         yield ('offset_div3_pair', (offset1 / 3, offset2 / 3))
 
     # rev_offset features
-    rev_offset1 = edu_info1['edu_rev_idx_in_sent']
-    rev_offset2 = edu_info2['edu_rev_idx_in_sent']
+    # we take the rev offset of the last EDU of each DU (approximation)
+    rev_offset1 = du_info1[-1]['edu_rev_idx_in_sent']
+    rev_offset2 = du_info2[-1]['edu_rev_idx_in_sent']
     if rev_offset1 is not None and rev_offset2 is not None:
-        yield ('rev_offset_diff', rev_offset1 - rev_offset2)
-        yield ('rev_offset_diff_div3', (rev_offset1 - rev_offset2) / 3)
+        rev_offset_diff = rev_offset1 - rev_offset2
+        yield ('rev_offset_diff', rev_offset_diff)
+        yield ('rev_offset_diff_div3', rev_offset_diff / 3)
         yield ('rev_offset_div3_pair', (rev_offset1 / 3, rev_offset2 / 3))
 
     # revSentenceID
-    rev_sent_id1 = edu_info1['edu_rev_idx_in_para']
-    rev_sent_id2 = edu_info2['edu_rev_idx_in_para']
+    rev_sent_id1 = du_info1[-1]['edu_rev_idx_in_para']
+    rev_sent_id2 = du_info2[-1]['edu_rev_idx_in_para']
     if rev_sent_id1 is not None and rev_sent_id2 is not None:
         yield ('rev_sentence_id_diff', rev_sent_id1 - rev_sent_id2)
         yield ('rev_sentence_id_diff_div3',
@@ -606,196 +669,248 @@ def extract_pair_sent(doc, edu_info1, edu_info2, edu_info_bwn):
 
 # syntax
 
-def extract_pair_syntax(doc, edu_info1, edu_info2, edu_info_bwn):
+def extract_pair_syntax(doc, du_info1, du_info2, edu_info_bwn):
     """syntactic features for the pair of EDUs"""
     try:
-        tree_idx1 = edu_info1['tkd_tree_idx']
-        tree_idx2 = edu_info2['tkd_tree_idx']
+        tree_idc1 = [edu_info['tkd_tree_idx'] for edu_info in du_info1]
+        tree_idc2 = [edu_info['tkd_tree_idx'] for edu_info in du_info2]
     except KeyError:
         return
 
-    if tree_idx1 is None or tree_idx2 is None:
+    if any(x is None for x in itertools.chain(tree_idc1, tree_idc2)):
         return
 
-    edu1 = edu_info1['edu']
-    edu2 = edu_info2['edu']
+    edus1_num = [edu_info['edu'].num for edu_info in du_info1]
+    edus2_num = [edu_info['edu'].num for edu_info in du_info2]
 
     # determine the linear order of {EDU_1, EDU_2}
-    if edu1.num < edu2.num:
-        # edu_l = edu1
-        # edu_r = edu2
-        edu_info_l = edu_info1
-        edu_info_r = edu_info2
+    if edus1_num[-1] < edus2_num[0]:
+        du_info_l = du_info1
+        du_info_r = du_info2
+        tree_idc_l = tree_idc1
+        tree_idc_r = tree_idc2
     else:
-        # edu_l = edu2
-        # edu_r = edu1
-        edu_info_l = edu_info2
-        edu_info_r = edu_info1
+        du_info_l = du_info2
+        du_info_r = du_info1
+        tree_idc_l = tree_idc2
+        tree_idc_r = tree_idc1
 
-    # intra-sentential case only
-    if tree_idx1 == tree_idx2:
-        ptree = doc.tkd_trees[tree_idx1]
-        pheads = doc.lex_heads[tree_idx1]
+    # inside each DU, group EDUs from the same sentence
+    # dict from int to int (index of tree, index of EDU in the DU)
+    tree2edu1 = defaultdict(list)
+    tree2edu2 = defaultdict(list)
+    tree2edu1.update({tree_idx: [x[0] for x in grp]
+                      for tree_idx, grp in itertools.groupby(
+                              enumerate(tree_idc1), key=lambda x: x[1])})
+    tree2edu2.update({tree_idx: [x[0] for x in grp]
+                      for tree_idx, grp in itertools.groupby(
+                              enumerate(tree_idc2), key=lambda x: x[1])})
 
-        # * DS-LST features
-        # find the head node of EDU1
-        tpos_words1 = edu_info1['tpos_words']
-        edu1_head = edu_info1['edu_head']
-        if edu1_head is not None:
-            treepos_hn1, treepos_hw1 = edu1_head
-            hlabel1 = ptree[treepos_hn1].label()
-            hword1 = ptree[treepos_hw1].word
-            # if the head node is not the root of the syn tree,
-            # there is an attachment node
-            if treepos_hn1 != ():
-                treepos_an1 = treepos_hn1[:-1]
-                treepos_aw1 = pheads[treepos_an1]
-                alabel1 = ptree[treepos_an1].label()
-                aword1 = ptree[treepos_aw1].word
+    # (part of) DU1 and (part of) DU2 belong to the same sentence:
+    # yield intra-sentential features
+    common_tree_idc = set(tree_idc1).intersection(set(tree_idc2))
+    if len(common_tree_idc) > 1:
+        raise ValueError("More than one sentence common to DU1 and DU2")
 
-        # find the head node of EDU2
-        tpos_words2 = edu_info2['tpos_words']
-        edu2_head = edu_info2['edu_head']
-        if edu2_head is not None:
-            treepos_hn2, treepos_hw2 = edu2_head
-            hlabel2 = ptree[treepos_hn2].label()
-            hword2 = ptree[treepos_hw2].word
-            # if the head node is not the root of the syn tree,
-            # there is an attachment node
-            if treepos_hn2 != ():
-                treepos_an2 = treepos_hn2[:-1]
-                treepos_aw2 = pheads[treepos_an2]
-                alabel2 = ptree[treepos_an2].label()
-                aword2 = ptree[treepos_aw2].word
+    if len(common_tree_idc) == 1:
+        # intra-sentential
+        for tree_idx in common_tree_idc:
+            ptree = doc.tkd_trees[tree_idx]
+            pheads = doc.lex_heads[tree_idx]
 
-        # EXPERIMENTAL
-        #
-        # EDU 2 > EDU 1
-        if ((treepos_hn1 != () and
-             treepos_aw1 in tpos_words2)):
-            # dominance relationship: 2 > 1
-            yield ('SYN_dom_2', True)
-            # attachment label and word
-            yield ('SYN_alabel', alabel1)
-            yield ('SYN_aword', aword1)
-            # head label and word
-            yield ('SYN_hlabel', hlabel1)
-            yield ('SYN_hword', hword1)
+            # relative index of each EDU in this sentence, from each DU
+            edus_in_du1 = tree2edu1[tree_idx]
+            edus_in_du2 = tree2edu2[tree_idx]
+            # l/r
+            if du_info_l == du_info1:
+                edus_in_du_l = edus_in_du1
+                edus_in_du_r = edus_in_du2
+            else:
+                edus_in_du_l = edus_in_du2
+                edus_in_du_r = edus_in_du1
 
-        # EDU 1 > EDU 2
-        if ((treepos_hn2 != () and
-             treepos_aw2 in tpos_words1)):
-            # dominance relationship: 1 > 2
-            yield ('SYN_dom_1', True)
-            # attachment label and word
-            yield ('SYN_alabel', alabel2)
-            yield ('SYN_aword', aword2)
-            # head label and word
-            yield ('SYN_hlabel', hlabel2)
-            yield ('SYN_hword', hword2)
+            # * DS-LST features
+            # find the head node of DU1
+            if len(edus_in_du1) == 1:
+                x0 = edus_in_du1[0]
+                tpos_words1 = du_info1[x0]['tpos_words']
+                edu1_head = du_info1[x0]['edu_head']
+            elif len(edus_in_du1) > 1:
+                tpos_words1 = set(itertools.chain.from_iterable(
+                    du_info1[x]['tpos_words'] for x in edus_in_du1))
+                edu1_head = find_edu_head(ptree, pheads, tpos_words1)
+            else:
+                raise ValueError("Hu? No EDU from DU1 in the common sentence")
 
-        # TODO assert that 1 > 2 and 2 > 1 cannot happen together
+            if edu1_head is not None:
+                treepos_hn1, treepos_hw1 = edu1_head
+                hlabel1 = ptree[treepos_hn1].label()
+                hword1 = ptree[treepos_hw1].word
+                # if the head node is not the root of the syn tree,
+                # there is an attachment node
+                if treepos_hn1 != ():
+                    treepos_an1 = treepos_hn1[:-1]
+                    treepos_aw1 = pheads[treepos_an1]
+                    alabel1 = ptree[treepos_an1].label()
+                    aword1 = ptree[treepos_aw1].word
 
-        # TODO fire a feature if the head nodes of EDU1 and EDU2
-        # have the same attachment node ?
+            # find the head node of EDU2
+            if len(edus_in_du2) == 1:
+                x0 = edus_in_du2[0]
+                tpos_words2 = du_info2[x0]['tpos_words']
+                edu2_head = du_info2[x0]['edu_head']
+            elif len(edus_in_du2) > 1:
+                tpos_words2 = set(itertools.chain.from_iterable(
+                    du_info2[x]['tpos_words'] for x in edus_in_du2))
+                edu2_head = find_edu_head(ptree, pheads, tpos_words2)
+            else:
+                raise ValueError("Hu? No EDU from DU2 in the common sentence?")
 
-        # * syntactic nodes (WIP as of 2016-05-25)
-        #   - interval between edu1 and edu2
-        if edu_info_bwn:
-            # bwn_edus = [x['edu'] for x in edu_info_bwn]
-            bwn_tokens = list(itertools.chain.from_iterable(
-                x['tokens'] for x in edu_info_bwn))
-            # 1. EDUs_bwn
-            # spanning nodes for the interval
-            syn_nodes = syntactic_node_seq(ptree, bwn_tokens)
-            if syn_nodes:
-                yield ('SYN_nodes_bwn',
-                       tuple(x.label() for x in syn_nodes))
-            # variant: strip leading and trailing punctuations
-            bwn_tokens_strip_punc = strip_punctuation(bwn_tokens)
-            syn_nodes_strip = syntactic_node_seq(ptree, bwn_tokens_strip_punc)
-            if syn_nodes_strip:
-                yield ('SYN_nodes_bwn_nopunc',
-                       tuple(x.label() for x in syn_nodes_strip))
+            if edu2_head is not None:
+                treepos_hn2, treepos_hw2 = edu2_head
+                hlabel2 = ptree[treepos_hn2].label()
+                hword2 = ptree[treepos_hw2].word
+                # if the head node is not the root of the syn tree,
+                # there is an attachment node
+                if treepos_hn2 != ():
+                    treepos_an2 = treepos_hn2[:-1]
+                    treepos_aw2 = pheads[treepos_an2]
+                    alabel2 = ptree[treepos_an2].label()
+                    aword2 = ptree[treepos_aw2].word
 
-            # 2. EDU_L + EDUs_bwn + EDU_R
-            # lbwnr_edus = [edu_l] + bwn_edus + [edu_r]
-            lbwnr_tokens = (edu_info_l['tokens']
-                            + bwn_tokens
-                            + edu_info_r['tokens'])
-            # spanning nodes
-            syn_nodes = syntactic_node_seq(ptree, lbwnr_tokens)
-            if syn_nodes:
-                yield ('SYN_nodes_lbwnr',
-                       tuple(x.label() for x in syn_nodes))
-            # variant: strip leading and trailing punctuations
-            lbwnr_tokens_strip_punc = strip_punctuation(lbwnr_tokens)
-            syn_nodes_strip = syntactic_node_seq(
-                ptree, lbwnr_tokens_strip_punc)
-            if syn_nodes_strip:
-                yield ('SYN_nodes_lbwnr_nopunc',
-                       tuple(x.label() for x in syn_nodes_strip))
+            # EXPERIMENTAL
+            #
+            # EDU 2 > EDU 1
+            if ((treepos_hn1 != () and
+                 treepos_aw1 in tpos_words2)):
+                # dominance relationship: 2 > 1
+                yield ('SYN_dom_2', True)
+                # attachment label and word
+                yield ('SYN_alabel', alabel1)
+                yield ('SYN_aword', aword1)
+                # head label and word
+                yield ('SYN_hlabel', hlabel1)
+                yield ('SYN_hword', hword1)
 
-            # 3. EDU_L + EDUs_bwn
-            # lbwn_edus = [edu_l] + bwn_edus
-            lbwn_tokens = (edu_info_l['tokens']
-                           + bwn_tokens)
-            # spanning nodes
-            syn_nodes = syntactic_node_seq(ptree, lbwn_tokens)
-            if syn_nodes:
-                yield ('SYN_nodes_lbwn',
-                       tuple(x.label() for x in syn_nodes))
-            # variant: strip leading and trailing punctuations
-            lbwn_tokens_strip_punc = strip_punctuation(lbwn_tokens)
-            syn_nodes_strip = syntactic_node_seq(
-                ptree, lbwn_tokens_strip_punc)
-            if syn_nodes_strip:
-                yield ('SYN_nodes_lbwn_nopunc',
-                       tuple(x.label() for x in syn_nodes_strip))
+            # EDU 1 > EDU 2
+            if ((treepos_hn2 != () and
+                 treepos_aw2 in tpos_words1)):
+                # dominance relationship: 1 > 2
+                yield ('SYN_dom_1', True)
+                # attachment label and word
+                yield ('SYN_alabel', alabel2)
+                yield ('SYN_aword', aword2)
+                # head label and word
+                yield ('SYN_hlabel', hlabel2)
+                yield ('SYN_hword', hword2)
 
-            # 4. EDUs_bwn + EDU_R
-            # bwnr_edus = bwn_edus + [edu_r]
-            bwnr_tokens = (bwn_tokens
-                           + edu_info_r['tokens'])
-            # spanning nodes
-            syn_nodes = syntactic_node_seq(ptree, bwnr_tokens)
-            if syn_nodes:
-                yield ('SYN_nodes_bwnr',
-                       tuple(x.label() for x in syn_nodes))
-            # variant: strip leading and trailing punctuations
-            bwnr_tokens_strip_punc = strip_punctuation(bwnr_tokens)
-            syn_nodes_strip = syntactic_node_seq(
-                ptree, bwnr_tokens_strip_punc)
-            if syn_nodes_strip:
-                yield ('SYN_nodes_bwnr_nopunc',
-                       tuple(x.label() for x in syn_nodes_strip))
+            # TODO assert that 1 > 2 and 2 > 1 cannot happen together
 
-            # TODO EDU_L + EDUs_bwn[:i], EDUs_bwn[i:] + EDUs_R ?
-            # where i should correspond to the split point of the (2nd
-            # order variant of the) Eisner decoder
+            # TODO fire a feature if the head nodes of EDU1 and EDU2
+            # have the same attachment node ?
 
-            # TODO specifically handle interval PRN that start with a comma
-            # that trails the preceding EDU ?
+            # * syntactic nodes (WIP as of 2016-05-25)
+            #   - interval between edu1 and edu2
+            if edu_info_bwn:
+                # bwn_edus = [x['edu'] for x in edu_info_bwn]
+                bwn_tokens = list(itertools.chain.from_iterable(
+                    x['tokens'] for x in edu_info_bwn))
+                # 1. EDUs_bwn
+                # spanning nodes for the interval
+                syn_nodes = syntactic_node_seq(ptree, bwn_tokens)
+                if syn_nodes:
+                    yield ('SYN_nodes_bwn',
+                           tuple(x.label() for x in syn_nodes))
+                # variant: strip leading and trailing punctuations
+                bwn_tokens_strip_punc = strip_punctuation(bwn_tokens)
+                syn_nodes_strip = syntactic_node_seq(ptree, bwn_tokens_strip_punc)
+                if syn_nodes_strip:
+                    yield ('SYN_nodes_bwn_nopunc',
+                           tuple(x.label() for x in syn_nodes_strip))
+
+                # 2. EDU_L + EDUs_bwn + EDU_R
+                # lbwnr_edus = [edu_l] + bwn_edus + [edu_r]
+                lbwnr_tokens = (
+                    list(itertools.chain.from_iterable(
+                        du_info_l[x]['tokens'] for x in edus_in_du_l))
+                    + bwn_tokens
+                    + list(itertools.chain.from_iterable(
+                        du_info_r[x]['tokens'] for x in edus_in_du_r)))
+                # spanning nodes
+                syn_nodes = syntactic_node_seq(ptree, lbwnr_tokens)
+                if syn_nodes:
+                    yield ('SYN_nodes_lbwnr',
+                           tuple(x.label() for x in syn_nodes))
+                # variant: strip leading and trailing punctuations
+                lbwnr_tokens_strip_punc = strip_punctuation(lbwnr_tokens)
+                syn_nodes_strip = syntactic_node_seq(
+                    ptree, lbwnr_tokens_strip_punc)
+                if syn_nodes_strip:
+                    yield ('SYN_nodes_lbwnr_nopunc',
+                           tuple(x.label() for x in syn_nodes_strip))
+
+                # 3. EDU_L + EDUs_bwn
+                # lbwn_edus = [edu_l] + bwn_edus
+                lbwn_tokens = (
+                    list(itertools.chain.from_iterable(
+                        du_info_l[x]['tokens'] for x in edus_in_du_l))
+                    + bwn_tokens)
+                # spanning nodes
+                syn_nodes = syntactic_node_seq(ptree, lbwn_tokens)
+                if syn_nodes:
+                    yield ('SYN_nodes_lbwn',
+                           tuple(x.label() for x in syn_nodes))
+                # variant: strip leading and trailing punctuations
+                lbwn_tokens_strip_punc = strip_punctuation(lbwn_tokens)
+                syn_nodes_strip = syntactic_node_seq(
+                    ptree, lbwn_tokens_strip_punc)
+                if syn_nodes_strip:
+                    yield ('SYN_nodes_lbwn_nopunc',
+                           tuple(x.label() for x in syn_nodes_strip))
+
+                # 4. EDUs_bwn + EDU_R
+                # bwnr_edus = bwn_edus + [edu_r]
+                bwnr_tokens = (
+                    bwn_tokens
+                    + list(itertools.chain.from_iterable(
+                        du_info_r[x]['tokens'] for x in edus_in_du_r)))
+                # spanning nodes
+                syn_nodes = syntactic_node_seq(ptree, bwnr_tokens)
+                if syn_nodes:
+                    yield ('SYN_nodes_bwnr',
+                           tuple(x.label() for x in syn_nodes))
+                # variant: strip leading and trailing punctuations
+                bwnr_tokens_strip_punc = strip_punctuation(bwnr_tokens)
+                syn_nodes_strip = syntactic_node_seq(
+                    ptree, bwnr_tokens_strip_punc)
+                if syn_nodes_strip:
+                    yield ('SYN_nodes_bwnr_nopunc',
+                           tuple(x.label() for x in syn_nodes_strip))
+
+                # TODO EDU_L + EDUs_bwn[:i], EDUs_bwn[i:] + EDUs_R ?
+                # where i should correspond to the split point of the (2nd
+                # order variant of the) Eisner decoder
+
+                # TODO specifically handle interval PRN that start with a comma
+                # that trails the preceding EDU ?
 
     # TODO fire a feature with the pair of labels of the head nodes of EDU1
     # and EDU2 ?
     else:
-        ptree1 = doc.tkd_trees[tree_idx1]
+        ptrees1 = [doc.tkd_trees[x] for x in tree_idc1]
         # pheads1 = doc.lex_heads[tree_idx1]
 
-        ptree2 = doc.tkd_trees[tree_idx2]
+        ptrees2 = [doc.tkd_trees[x] for x in tree_idc2]
         # pheads2 = doc.lex_heads[tree_idx2]
 
         # pair of sentence types, hopefully informative esp. for non-S
-        yield ('SYN_sent_type_pair', (ptree1.label(),
-                                      ptree2.label()))
+        yield ('SYN_sent_type_pair', (tuple(x.label() for x in ptrees1),
+                                      tuple(x.label() for x in ptrees2)))
         # sentence types in between
-        ptree_l = edu_info_l['tkd_tree_idx']
-        ptree_r = edu_info_r['tkd_tree_idx']
         try:
-            ptrees_lbwnr = ([ptree_l]
+            ptrees_lbwnr = (tree_idc_l
                             + [x['tkd_tree_idx'] for x in edu_info_bwn]
-                            + [ptree_r])
+                            + tree_idc_r)
         except KeyError:
             pass
         else:

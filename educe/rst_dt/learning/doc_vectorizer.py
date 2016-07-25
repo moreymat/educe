@@ -255,63 +255,84 @@ class DocumentCountVectorizer(object):
         # extract one feature vector per EDU pair
         feat_vecs = []
         # generate EDU pairs
-        edu_pairs = self.instance_generator(doc)
+        du_pairs = self.instance_generator(doc)
         # cache single EDU features
         sf_cache = dict()
 
-        for edu1, edu2 in edu_pairs:
-            # WIP interval
-            if edu1.num < edu2.num:
-                edul_num = edu1.num
-                edur_num = edu2.num
+        # WIP 2016-07-21 generalization from EDU to DU (frag EDUs, CDUs)
+        def edu_num(edu_id):
+            """Helper that probably already exists to get the EDU number"""
+            if edu_id == 'ROOT':
+                return 0
+            return int(edu_id.rsplit('_', 1)[1])
+
+        def edu_members(du):
+            """Get a tuple with the num of the EDUs members of a DU"""
+            if isinstance(du, tuple):  # frag EDU, CDU
+                # get the EDUs from their identifiers
+                return tuple(edu_num(x) for x in du[1])
             else:
-                edul_num = edu2.num
-                edur_num = edu1.num
+                return tuple([edu_num(du.identifier())])
+
+        for du1, du2 in du_pairs:
+            edus1_num = edu_members(du1)
+            edus2_num = edu_members(du2)
+
+            # WIP interval
+            if edus1_num[-1] < edus2_num[0]:
+                edul_num = edus1_num[-1]
+                edur_num = edus2_num[0]
+            elif edus2_num[-1] < edus1_num[0]:
+                edul_num = edus2_num[-1]
+                edur_num = edus1_num[0]
+            else:
+                raise ValueError("Overlapping DUs are currently unsupported")
             bwn_nums = range(edul_num + 1, edur_num)
             # end WIP interval
 
             feat_dict = dict()
             # retrieve info for each EDU
-            edu_info1 = edu_infos[edu1.num]
-            edu_info2 = edu_infos[edu2.num]
+            du_info1 = [edu_infos[i] for i in edus1_num]
+            du_info2 = [edu_infos[i] for i in edus2_num]
             # NEW paragraph info
             try:
-                para_info1 = para_infos[edu2para[edu1.num]]
+                para_info1 = [para_infos[edu2para[i]] for i in edus1_num]
             except TypeError:
                 para_info1 = None
             try:
-                para_info2 = para_infos[edu2para[edu2.num]]
+                para_info2 = [para_infos[edu2para[i]] for i in edus2_num]
             except TypeError:
                 para_info2 = None
             # ... and for the EDUs in between (WIP interval)
-            edu_info_bwn = [edu_infos[x] for x in bwn_nums]
-            # gov EDU
-            if edu1.num not in sf_cache:
-                sf_cache[edu1.num] = dict(sing_extract(
-                    doc, edu_info1, para_info1))
-            feat_dict['EDU1'] = dict(sf_cache[edu1.num])
-            # dep EDU
-            if edu2.num not in sf_cache:
-                sf_cache[edu2.num] = dict(sing_extract(
-                    doc, edu_info2, para_info2))
-            feat_dict['EDU2'] = dict(sf_cache[edu2.num])
+            edu_info_bwn = [edu_infos[i] for i in bwn_nums]
+
+            # gov DU
+            if edus1_num not in sf_cache:
+                sf_cache[edus1_num] = dict(sing_extract(
+                    doc, du_info1, para_info1))
+            feat_dict['DU1'] = dict(sf_cache[edus1_num])
+            # dep DU
+            if edus2_num not in sf_cache:
+                sf_cache[edus2_num] = dict(sing_extract(
+                    doc, du_info2, para_info2))
+            feat_dict['DU2'] = dict(sf_cache[edus2_num])
             # pair + in between
             feat_dict['pair'] = dict(pair_extract(
-                doc, edu_info1, edu_info2, edu_info_bwn))
+                doc, du_info1, du_info2, edu_info_bwn))
             # NEW
             # product features
-            feat_dict['pair'].update(feat_prod(feat_dict['EDU1'],
-                                               feat_dict['EDU2'],
+            feat_dict['pair'].update(feat_prod(feat_dict['DU1'],
+                                               feat_dict['DU2'],
                                                feat_dict['pair']))
             # combine features
-            feat_dict['pair'].update(feat_comb(feat_dict['EDU1'],
-                                               feat_dict['EDU2'],
+            feat_dict['pair'].update(feat_comb(feat_dict['DU1'],
+                                               feat_dict['DU2'],
                                                feat_dict['pair']))
             # add suffix to single EDU features
-            feat_dict['EDU1'] = dict(re_emit(feat_dict['EDU1'].items(),
-                                             '_EDU1'))
-            feat_dict['EDU2'] = dict(re_emit(feat_dict['EDU2'].items(),
-                                             '_EDU2'))
+            feat_dict['DU1'] = dict(re_emit(feat_dict['DU1'].items(),
+                                             '_DU1'))
+            feat_dict['DU2'] = dict(re_emit(feat_dict['DU2'].items(),
+                                             '_DU2'))
 
             # split feat space
             if split_feat_space is not None:
@@ -320,12 +341,12 @@ class DocumentCountVectorizer(object):
                 # * intra/inter-sentential,
                 # * intra/inter-sentential + attachment dir
                 fds = self.feature_set.split_feature_space(
-                    feat_dict['EDU1'],
-                    feat_dict['EDU2'],
+                    feat_dict['DU1'],
+                    feat_dict['DU2'],
                     feat_dict['pair'],
                     keep_original=False,
                     split_criterion=split_feat_space)
-                feat_dict['EDU1'], feat_dict['EDU2'], feat_dict['pair'] = fds
+                feat_dict['DU1'], feat_dict['DU2'], feat_dict['pair'] = fds
 
             # convert to list
             feats = list(itertools.chain.from_iterable(
