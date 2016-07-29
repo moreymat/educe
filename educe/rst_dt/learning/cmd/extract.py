@@ -99,8 +99,8 @@ def config_argparser(parser):
                              '(currently none)')
     # WIP 2016-07-15 same-unit
     parser.add_argument('--instances',
-                        choices=['all-pairs', 'same-unit', 'frag-pairs'],
-                        default='all-pairs',
+                        choices=['edu-pairs', 'same-unit', 'frag-pairs'],
+                        default='edu-pairs',
                         help="Selection of instances")
     # provide a list of fragmented EDUs (related by "same-unit")
     # to generate supplementary instances
@@ -146,11 +146,11 @@ def extract_dump_instances(docs, instance_generator, feature_set,
         os.makedirs(output)
     fn_ext = '.sparse'  # our extension for sparse datasets
     if live:
-        fn_out = '{}.extracted-features{}'.format(
+        fn_out = 'extracted-features.{}{}'.format(
             instance_descr, fn_ext)
     else:
-        fn_out = '{}.{}.relations{}'.format(
-            instance_descr, os.path.basename(corpus), fn_ext)
+        fn_out = '{}.relations.{}{}'.format(
+            os.path.basename(corpus), instance_descr, fn_ext)
     out_file = os.path.join(output, fn_out)
     vocab_file = out_file + '.vocab'
 
@@ -355,9 +355,9 @@ def main(args):
         doc_cdus = None  # WIP
     # end WIP pre-process same-unit
 
-    elif args.instances == 'all-pairs':
+    elif args.instances == 'edu-pairs':
         # all pairs of EDUs
-        instance_generator = ('all-pairs',
+        instance_generator = ('edu-pairs',
                               lambda doc: doc.all_edu_pairs())
         split_feat_space = 'dir_sent'
         doc_cdus = None  # WIP
