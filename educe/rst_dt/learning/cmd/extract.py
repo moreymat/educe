@@ -12,7 +12,10 @@ from __future__ import print_function
 from collections import defaultdict
 import csv
 import itertools
+from glob import glob
 import os
+import sys
+import time
 
 import educe.corpus
 import educe.glozz
@@ -21,6 +24,7 @@ import educe.util
 
 from educe.learning.cdu_input_format import (dump_all_cdus)
 from educe.learning.edu_input_format import (dump_all,
+                                             dump_labels,
                                              load_labels)
 from educe.learning.vocabulary_format import (dump_vocabulary,
                                               load_vocabulary)
@@ -102,9 +106,11 @@ def config_argparser(parser):
                         choices=['edu-pairs', 'same-unit', 'frag-pairs'],
                         default='edu-pairs',
                         help="Selection of instances")
-    # provide a list of fragmented EDUs (related by "same-unit")
+    # provide a list of fragmented EDUs (labelled "same-unit")
     # to generate supplementary instances
     parser.add_argument('--frag-edus',
+                        choices=['none', 'true', 'pred'],
+                        default='none',
                         help="List of fragmented EDUs")
     # end WIP same-unit
     parser.set_defaults(func=main)
@@ -144,15 +150,21 @@ def extract_dump_instances(docs, instance_generator, feature_set,
     # setup persistency
     if not os.path.exists(output):
         os.makedirs(output)
-    fn_ext = '.sparse'  # our extension for sparse datasets
     if live:
-        fn_out = 'extracted-features.{}{}'.format(
-            instance_descr, fn_ext)
+        fn_out = 'extracted-features.{}'.format(instance_descr)
     else:
-        fn_out = '{}.relations.{}{}'.format(
-            os.path.basename(corpus), instance_descr, fn_ext)
-    out_file = os.path.join(output, fn_out)
-    vocab_file = out_file + '.vocab'
+        fn_out = '{}.relations.{}'.format(
+            os.path.basename(corpus), instance_descr)
+    # vocabulary, labels
+    fn_ext = '.sparse'  # our extension for sparse datasets (svmlight)
+    vocab_file = os.path.join(output, fn_out + fn_ext + '.vocab')
+    labels_file = os.path.join(output, fn_out + '.labels')
+    # WIP 2016-08-29 output folder, will contain n files per doc
+    # ex: TRAINING/wsj_0601.out.all-pairs.sparse
+    out_dir = os.path.join(output, os.path.basename(corpus))
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+    # end WIP output folder
 
     # extract vectorized samples
     if vocabulary is not None:
@@ -193,13 +205,60 @@ def extract_dump_instances(docs, instance_generator, feature_set,
             y_gen = labtor.transform(docs)
 
     # dump instances to files
+    print('Dump instances ', end='')
+    sys.stdout.flush()
+    t0 = time.time()
     if instance_descr == 'frag-pairs':
-        dump_all_cdus(X_gen, y_gen, out_file, labtor.labelset_, docs,
-                      doc_cdus, instance_gen)
+        for doc, X, y in itertools.izip(docs, X_gen, y_gen):
+            doc_name = doc.key.doc
+            doc_cdus = doc_cdus[doc_name]
+            # TODO refactor
+            if live:
+                fn_out = 'extracted-features.{}{}'.format(
+                    instance_descr, fn_ext)
+            else:
+                fn_out = '{}.relations.{}{}'.format(
+                    doc_name, instance_descr, fn_ext)
+            out_file = os.path.join(out_dir, fn_out)
+            # end TODO refactor
+            dump_all_cdus(X, y, out_file, labtor.labelset_, doc,
+                          doc_cdus, instance_gen)
     else:
-        # dump EDUs and features in svmlight format
-        dump_all(X_gen, y_gen, out_file, labtor.labelset_, docs,
-                 instance_gen)
+        for doc, X, y in itertools.izip(docs, X_gen, y_gen):
+            # dump EDUs and features in svmlight format
+            doc_name = doc.key.doc
+            # TODO refactor
+            if live:
+                fn_out = 'extracted-features.{}{}'.format(
+                    instance_descr, fn_ext)
+            else:
+                fn_out = '{}.relations.{}{}'.format(
+                    doc_name, instance_descr, fn_ext)
+            out_file = os.path.join(out_dir, fn_out)
+            # end TODO refactor
+            dump_all(X, y, out_file, labtor.labelset_, doc, instance_gen)
+    # trace
+    t1 = time.time()
+    print('[{:.4f} s]'.format(t1 - t0))
+
+    # dump labelset
+    if labels is not None:
+        # relative path to get a correct symlink
+        existing_labels = os.path.relpath(
+            labels, start=os.path.dirname(labels_file))
+        # c/c from attelo.harness.util.force_symlink()
+        if os.path.islink(labels_file):
+            os.unlink(labels_file)
+        elif os.path.exists(labels_file):
+            oops = ("Can't force symlink from " + labels +
+                    " to " + labels_file +
+                    " because a file of that name already exists")
+            raise ValueError(oops)
+        os.symlink(existing_labels, labels_file)
+        # end c/c
+    else:
+        dump_labels(labtor.labelset_, labels_file)
+
     # dump vocabulary
     if vocabulary is not None:
         # FIXME relative path to get a correct symlink
@@ -314,9 +373,13 @@ def main(args):
         return doc
 
     # generate DocumentPluses
+    print('Gather rich representations of documents ', end='')
+    t0 = time.time()
     # TODO remove sorted() once educe.corpus.Reader is able
     # to iterate over a stable (sorted) list of FileIds
     docs = [open_plus(doc) for doc in sorted(rst_corpus)]
+    t1 = time.time()
+    print('[{:.4f} s]'.format(t1 - t0))
 
     # WIP 2016-07-08 pre-process to find same-units
     if args.instances == 'same-unit':
@@ -328,15 +391,15 @@ def main(args):
         # TODO ? filter out from the set of candidate "same-unit" all
         # instances that do not meet the following criteria:
         # right attachment, same sentence, len > 1.
-        doc_cdus = []
+        doc_cdus = dict()
         for doc in docs:
-            doc_name = doc.edus[1].identifier().rsplit('_', 1)[0]
+            doc_name = doc.key.doc
             frag_edus = [(doc_name + '_frag' + str(frag_idx),
                           tuple(doc.edus[i].identifier() for i in frag_edu))
                          for frag_idx, frag_edu
                          in enumerate(doc.deptree.fragmented_edus(),
                                       start=1)]
-            doc_cdus.append(frag_edus)
+            doc_cdus[doc_name] = frag_edus
 
         # * TMP? dump gold same-unit ; this should probably be done elsewhere
         # setup persistency ; redundant / overlapping with existing code above
@@ -344,14 +407,18 @@ def main(args):
             os.makedirs(args.output)
         instance_descr = 'same-unit'
         fn_ext = '.deps_true'
-        fn_out = '{}.{}.relations{}'.format(
-            instance_descr, os.path.basename(args.corpus), fn_ext)
-        fpath_su_true = os.path.join(args.output, fn_out)
-        with open(fpath_su_true, 'wb') as f_out:
-            su_writer = csv.writer(f_out, dialect=csv.excel_tab)
-            su_writer.writerows(
-                [[x[0]] + list(x[1])
-                 for x in itertools.chain.from_iterable(doc_cdus)])
+        out_dir = os.path.join(args.output,
+                               os.path.basename(args.corpus))
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+
+        for doc_name, frag_edus in doc_cdus.items():
+            fn_out = '{}.relations.{}{}'.format(
+                doc_name, instance_descr, fn_ext)
+            fpath_su_true = os.path.join(out_dir, fn_out)
+            with open(fpath_su_true, 'wb') as f_out:
+                su_writer = csv.writer(f_out, dialect=csv.excel_tab)
+                su_writer.writerows([[x[0]] + list(x[1]) for x in frag_edus])
         doc_cdus = None  # WIP
     # end WIP pre-process same-unit
 
@@ -363,28 +430,30 @@ def main(args):
         doc_cdus = None  # WIP
     elif args.instances == 'frag-pairs':
         # WIP 2016-07-20 supplementary pairs from/to fragmented EDUs
-        if args.frag_edus is None:
-            raise ValueError('frag-pairs requires frag-edus')
-
-        # WIP 2016-07-18 read the list of fragmented EDUs ;
+        if args.frag_edus == 'true':
+            glob_frag = '*.same-unit.deps_true'
+        elif args.frag_edus == 'pred':
+            glob_frag = '*.same-unit.deps_pred'
+        else:
+            raise ValueError("frag-pairs requires frag-edus in "
+                             "{'true', 'pred'}")
+        glob_frag = os.path.join(out_dir, glob_frag)
+        # WIP 2016-07-18 read the list of fragmented EDUs for each doc ;
         # tab-delimited CSV, each line lists the identifiers of the EDUs
         # that are members of this CDU
         # NB currently this does *not* enable to read files in the attelo
         # output format, because the latter ends each line with the label:
         # (gov_id, tab_id, label) vs (i_id, j_id, ..., n_id)
         doc2frag_edus = defaultdict(list)
-        if args.frag_edus is not None:
-            # read all fragmented EDUs from file
-            frag_edus = []
-            with open(args.frag_edus) as f_frag_edus:
+        # read all fragmented EDUs from file
+        for frag_file in glob(glob_frag):
+            with open(frag_file) as f_frag_edus:
+                doc_name = frag_file.rsplit('.', 3)[0]
                 reader_frag = csv.reader(f_frag_edus, dialect=csv.excel_tab)
-                frag_edus.extend((x[0], tuple(x[1:]))
-                                  for x in reader_frag if x)
-            # dispatch for each doc
-            for frag_edu in frag_edus:
-                doc_id = frag_edu[1][-1].rsplit('_', 1)[0]
-                doc2frag_edus[doc_id].append(frag_edu)
-
+                doc2frag_edus[doc_name] = [(x[0], tuple(x[1:]))
+                                           for x in reader_frag if x]
+                print(doc_name, doc2frag_edus[doc_name])
+                raise ValueError('wip')
         # supplementary pairs from/to fragmented EDUs
         instance_generator = ('frag-pairs',
                               lambda doc: doc.du_pairs(
