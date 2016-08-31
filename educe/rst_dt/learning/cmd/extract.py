@@ -209,9 +209,8 @@ def extract_dump_instances(docs, instance_generator, feature_set,
     sys.stdout.flush()
     t0 = time.time()
     if instance_descr == 'frag-pairs':
-        for doc, X, y in itertools.izip(docs, X_gen, y_gen):
+        for doc, X, y, cdus in itertools.izip(docs, X_gen, y_gen, doc_cdus):
             doc_name = doc.key.doc
-            doc_cdus = doc_cdus[doc_name]
             # TODO refactor
             if live:
                 fn_out = 'extracted-features.{}{}'.format(
@@ -222,7 +221,7 @@ def extract_dump_instances(docs, instance_generator, feature_set,
             out_file = os.path.join(out_dir, fn_out)
             # end TODO refactor
             dump_all_cdus(X, y, out_file, labtor.labelset_, doc,
-                          doc_cdus, instance_gen)
+                          cdus, instance_gen)
     else:
         for doc, X, y in itertools.izip(docs, X_gen, y_gen):
             # dump EDUs and features in svmlight format
@@ -381,47 +380,12 @@ def main(args):
     t1 = time.time()
     print('[{:.4f} s]'.format(t1 - t0))
 
-    # WIP 2016-07-08 pre-process to find same-units
     if args.instances == 'same-unit':
+        # WIP 2016-07-08 pre-process to find same-units
         instance_generator = ('same-unit',
                               lambda doc: doc.same_unit_candidates())
         split_feat_space = None
-
-        # WIP 2016-07-18 gather gold same-unit for each document ;
-        # TODO ? filter out from the set of candidate "same-unit" all
-        # instances that do not meet the following criteria:
-        # right attachment, same sentence, len > 1.
-        doc_cdus = dict()
-        for doc in docs:
-            doc_name = doc.key.doc
-            frag_edus = [(doc_name + '_frag' + str(frag_idx),
-                          tuple(doc.edus[i].identifier() for i in frag_edu))
-                         for frag_idx, frag_edu
-                         in enumerate(doc.deptree.fragmented_edus(),
-                                      start=1)]
-            doc_cdus[doc_name] = frag_edus
-
-        # * TMP? dump gold same-unit ; this should probably be done elsewhere
-        # setup persistency ; redundant / overlapping with existing code above
-        if not os.path.exists(args.output):
-            os.makedirs(args.output)
-        instance_descr = 'same-unit'
-        fn_ext = '.deps_true'
-        out_dir = os.path.join(args.output,
-                               os.path.basename(args.corpus))
-        if not os.path.exists(out_dir):
-            os.makedirs(out_dir)
-
-        for doc_name, frag_edus in doc_cdus.items():
-            fn_out = '{}.relations.{}{}'.format(
-                doc_name, instance_descr, fn_ext)
-            fpath_su_true = os.path.join(out_dir, fn_out)
-            with open(fpath_su_true, 'wb') as f_out:
-                su_writer = csv.writer(f_out, dialect=csv.excel_tab)
-                su_writer.writerows([[x[0]] + list(x[1]) for x in frag_edus])
         doc_cdus = None  # WIP
-    # end WIP pre-process same-unit
-
     elif args.instances == 'edu-pairs':
         # all pairs of EDUs
         instance_generator = ('edu-pairs',
@@ -437,7 +401,9 @@ def main(args):
         else:
             raise ValueError("frag-pairs requires frag-edus in "
                              "{'true', 'pred'}")
-        glob_frag = os.path.join(out_dir, glob_frag)
+        # FIXME see attelo.parser.same_unit: find a way to dump the
+        # same unit deps to `out_dir` instead of 'TMP_same_unit'
+        glob_frag = os.path.join('TMP_same_unit', glob_frag)
         # WIP 2016-07-18 read the list of fragmented EDUs for each doc ;
         # tab-delimited CSV, each line lists the identifiers of the EDUs
         # that are members of this CDU
@@ -453,7 +419,7 @@ def main(args):
                 doc2frag_edus[doc_name] = [(x[0], tuple(x[1:]))
                                            for x in reader_frag if x]
                 print(doc_name, doc2frag_edus[doc_name])
-                raise ValueError('wip')
+                raise ValueError('wip frag_pairs')
         # supplementary pairs from/to fragmented EDUs
         instance_generator = ('frag-pairs',
                               lambda doc: doc.du_pairs(
