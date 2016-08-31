@@ -257,10 +257,7 @@ class DocumentCountVectorizer(object):
 
         edu2para = doc.edu2para
         # preprocess each EDU
-        t0 = time.time()
         edu_infos, para_infos = doc_preprocess(doc)
-        t1 = time.time()
-        print('preprocess {:.4f}'.format(t1 - t0))
         # extract one feature vector per EDU pair
         feat_vecs = []
         # generate EDU pairs
