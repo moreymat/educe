@@ -17,7 +17,6 @@ Corpus management
 # the above. Give us a mapping from FileId to filepaths and we
 # do the rest.
 
-import sys
 
 class FileId:
     """
@@ -49,10 +48,10 @@ class FileId:
     :type annotator: string
     """
     def __init__(self, doc, subdoc, stage, annotator):
-       self.doc=doc
-       self.subdoc=subdoc
-       self.stage=stage
-       self.annotator=annotator
+        self.doc = doc
+        self.subdoc = subdoc
+        self.stage = stage
+        self.annotator = annotator
 
     def __str__(self):
         return "%s [%s] %s %s" % (self.doc, self.subdoc, self.stage, self.annotator)
@@ -101,7 +100,7 @@ class Reader:
     to data.
 
     :param rootdir: the top directory of the corpus
-    :type  rootdir: string
+    :type rootdir: str
 
     A potentially useful pattern to apply here is to take a slice of
     these dictionaries for processing. For example, you might not want
@@ -126,8 +125,8 @@ class Reader:
     This is an abstract class; you should use the version from a
     data-set, eg. `educe.stac.Reader` instead
     """
-    def __init__(self, dir):
-        self.rootdir=dir
+    def __init__(self, root):
+        self.rootdir = root
 
     def files(self):
         """
@@ -152,10 +151,8 @@ class Reader:
         :param verbose: print what we're reading to stderr
         :type  verbose: bool
         """
-        if cfiles is None:
-            subcorpus=self.files()
-        else:
-            subcorpus=cfiles
+        subcorpus = (cfiles if cfiles is not None
+                     else self.files())
         return self.slurp_subcorpus(subcorpus, verbose)
 
     def slurp_subcorpus(self, cfiles, verbose=False):
@@ -168,7 +165,7 @@ class Reader:
         """
         Convenience function equivalent to ::
 
-            { k:v for k,v in d.items() if pred(k) }
+            { k: v for k, v in d.items() if pred(k) }
         """
-        return dict([(k,v) for k,v in d.items() if pred(k)])
+        return dict([(k, v) for k, v in d.items() if pred(k)])
 

@@ -380,6 +380,12 @@ def main(args):
     t1 = time.time()
     print('[{:.4f} s]'.format(t1 - t0))
 
+    # 2016-09-04 disdep dump WIP
+    from educe.learning.disdep_format import dump_disdep_files
+    dump_disdep_files([x.deptree for x in docs], 'toto_dir')
+    raise ValueError('woopti')
+    # end disdep dump
+
     if args.instances == 'same-unit':
         # WIP 2016-07-08 pre-process to find same-units
         instance_generator = ('same-unit',
