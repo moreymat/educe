@@ -1,4 +1,6 @@
-"""This module enables to load the output of Joty's discourse parser CODRA.
+"""This module enables to load the output of the discourse parser described in
+(Feng & Hirst 2014).
+
 """
 
 import codecs
@@ -8,16 +10,14 @@ import os
 from .parse import parse_rst_dt_tree
 
 
-def load_codra_output_files(container_path, level='doc'):
-    """Load ctrees output by CODRA on the TEST section of RST-WSJ.
+def load_feng_output_files(root_dir):
+    """Load ctrees output by Feng & Hirst's parser on the TEST section of
+    RST-WSJ.
 
     Parameters
     ----------
-    container_path: string
-        Path to the main folder containing CODRA's output
-
-    level: {'doc', 'sent'}, optional (default='doc')
-        Level of decoding: document-level or sentence-level
+    root_dir: string
+        Path to the main folder containing the parser's output
 
     Returns
     -------
@@ -32,21 +32,15 @@ def load_codra_output_files(container_path, level='doc'):
     for fileX documents, but they are absent from the TEST section of
     the RST-WSJ treebank.
     """
-    if level == 'doc':
-        file_ext = '.doc_dis'
-    elif level == 'sent':
-        file_ext = '.sen_dis'
-    else:
-        raise ValueError("level {} not in ['doc', 'sent']".format(level))
-
     # find all files with the right extension
-    pathname = os.path.join(container_path, '*{}'.format(file_ext))
+    file_ext = '.txt.dis'
+    pathname = os.path.join(root_dir, '*{}'.format(file_ext))
     # filenames are sorted by name to avoid having to realign data
     # loaded with different functions
     filenames = sorted(glob.glob(pathname))  # glob.glob() returns a list
 
     # find corresponding doc names
-    doc_names = [os.path.splitext(os.path.basename(filename))[0] + '.out'
+    doc_names = [os.path.basename(filename).rsplit('.', 2)[0] + '.out'
                  for filename in filenames]
 
     # load the RST trees
