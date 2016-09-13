@@ -101,6 +101,11 @@ def config_argparser(parser):
     parser.add_argument('--experimental', action='store_true',
                         help='Enable experimental features '
                              '(currently none)')
+    # 2016-09-12 nary_enc: chain vs tree transform
+    parser.add_argument('--nary_enc', default='chain',
+                        choices=['chain', 'tree'],
+                        help='Encoding for n-ary nodes')
+    # end nary_enc
     # WIP 2016-07-15 same-unit
     parser.add_argument('--instances',
                         choices=['edu-pairs', 'same-unit', 'frag-pairs'],
@@ -293,6 +298,7 @@ def main(args):
     rst_reader = RstDtParser(args.corpus, args,
                              coarse_rels=args.coarse,
                              fix_pseudo_rels=args.fix_pseudo_rels,
+                             nary_enc=args.nary_enc,
                              exclude_file_docs=exclude_file_docs)
     rst_corpus = rst_reader.corpus
     # TODO: change educe.corpus.Reader.slurp*() so that they return an object
@@ -380,12 +386,6 @@ def main(args):
     t1 = time.time()
     print('[{:.4f} s]'.format(t1 - t0))
 
-    # 2016-09-04 disdep dump WIP
-    from educe.learning.disdep_format import dump_disdep_files
-    dump_disdep_files([x.deptree for x in docs], 'toto_dir')
-    raise ValueError('woopti')
-    # end disdep dump
-
     if args.instances == 'same-unit':
         # WIP 2016-07-08 pre-process to find same-units
         instance_generator = ('same-unit',
@@ -424,8 +424,9 @@ def main(args):
                 reader_frag = csv.reader(f_frag_edus, dialect=csv.excel_tab)
                 doc2frag_edus[doc_name] = [(x[0], tuple(x[1:]))
                                            for x in reader_frag if x]
-                print(doc_name, doc2frag_edus[doc_name])
-                raise ValueError('wip frag_pairs')
+                if False:  # TODO fix frag-pairs
+                    print(doc_name, doc2frag_edus[doc_name])
+                    raise ValueError('wip frag_pairs')
         # supplementary pairs from/to fragmented EDUs
         instance_generator = ('frag-pairs',
                               lambda doc: doc.du_pairs(
