@@ -191,7 +191,6 @@ class InsideOutAttachmentRanker(object):
 
                 targets = [i for i, hd in enumerate(dtree.heads)
                            if hd == head]
-
                 if self.prioritize_same_unit:
                     # gobble everything between the head and the rightmost
                     # "same-unit"
@@ -346,14 +345,12 @@ class InsideOutAttachmentRanker(object):
                                     'closest-intra-lr-inter-rl']:
                         # best: closest-intra-rl-inter-lr (2016-07-??)
                         # current: closest-intra-rl-inter-rl (2016-09-13)
-                        # create boolean mask for intra targets
-                        # targets_intra = [sent_idx_loc[tgt] == sent_idx_loc[head]
-                        #                  for tgt in targets]
+
                         # intra
-                        left_intra = [sent_idx_loc[tgt] == sent_idx_loc[head]
-                                      for tgt in left]
-                        right_intra = [sent_idx_loc[tgt] == sent_idx_loc[head]
-                                       for tgt in right]
+                        left_intra = [tgt for tgt in left
+                                      if sent_idx_loc[tgt] == sent_idx_loc[head]]
+                        right_intra = [tgt for tgt in right
+                                       if sent_idx_loc[tgt] == sent_idx_loc[head]]
                         sides = ([right_intra, left_intra]
                                  if strategy in ['closest-intra-rl-inter-lr',
                                                  'closest-intra-rl-inter-rl']
@@ -392,10 +389,10 @@ class InsideOutAttachmentRanker(object):
                             rank_idx += 1
 
                         # inter
-                        left_inter = [sent_idx_loc[tgt] != sent_idx_loc[head]
-                                      for tgt in left]
-                        right_inter = [sent_idx_loc[tgt] != sent_idx_loc[head]
-                                       for tgt in right]
+                        left_inter = [tgt for tgt in left
+                                      if sent_idx_loc[tgt] != sent_idx_loc[head]]
+                        right_inter = [tgt for tgt in right
+                                       if sent_idx_loc[tgt] != sent_idx_loc[head]]
                         sides = ([right_inter, left_inter]
                                  if strategy in ['closest-intra-lr-inter-rl',
                                                  'closest-intra-rl-inter-rl']
