@@ -8,10 +8,11 @@ TODO
       underlying multinuclear relation
 """
 
-from collections import namedtuple
+from collections import defaultdict, namedtuple
 import itertools
 
-from .annotation import SimpleRSTTree, Node
+from educe.annotation import Span
+from .annotation import SimpleRSTTree, Node, RSTTree
 from .deptree import RstDtException, NUC_N, NUC_S, NUC_R
 from ..internalutil import treenode
 
@@ -702,3 +703,147 @@ class TreeParts(namedtuple("TreeParts_", "edu edu_span span rel kids")):
     """
     pass
 # pylint: enable=R0903, W0232
+
+
+# TODO function that collapses chains of NN dependencies with same label
+# from RstDepTree to RstDepTree ? or to RSTTree ?
+# use dtree.nary_enc
+
+
+def deptree_to_rst_tree(dtree):
+    """Create an RSTTree from an RstDepTree.
+
+    Parameters
+    ----------
+    dtree: RstDepTree
+        RST dependency tree, i.e. an ordered dtree.
+
+    Returns
+    -------
+    ctree: RSTTree
+        RST constituency tree that corresponds to the dtree.
+    """
+    heads = dtree.heads
+    ranks = dtree.ranks
+    origin = dtree.origin
+
+    # gov -> (rank -> [deps])
+    ranked_deps = defaultdict(lambda: defaultdict(list))
+    for dep, (gov, rnk) in enumerate(zip(heads[1:], ranks[1:]), start=1):
+        ranked_deps[gov][rnk].append(dep)
+
+    # store pointers to substructures as they are built
+    subtrees = [None for x in dtree.edus]
+
+    # compute height of each governor in the dtree
+    heights = [0 for x in dtree.edus]
+    while True:
+        old_heights = tuple(heights)
+        for i, hd in enumerate(dtree.heads[1:], start=1):
+            heights[hd] = max(heights[hd], heights[i] + 1)
+        if tuple(heights) == old_heights:
+            # fixpoint reached
+            break
+    # group nodes by their height in the dtree
+    govs_by_height = defaultdict(list)
+    for i, height in enumerate(heights):
+        govs_by_height[height].append(i)
+
+    # bottom-up traversal of the dtree: create sub-ctrees
+    # * create leaves of the RST ctree: initialize them with the
+    # label and nuclearity from the dtree
+    for i in range(1, len(dtree.edus)):
+        node = Node(dtree.nucs[i], (i, i), dtree.edus[i].span,
+                    dtree.labels[i], context=None)  # TODO context?
+        children = []
+        subtrees[i] = RSTTree(node, children, origin=origin)
+
+    # * create internal nodes: for each governor, create one projection
+    # per rank of dependents ; each time a projection node is created,
+    # we use the set of dependencies to overwrite the nuc and label of
+    # its children
+    for height in range(1, max(heights)):
+        nodes = govs_by_height[height]
+        for gov in nodes:
+            max_rnk = max(ranked_deps[gov].keys())
+            for rnk, deps in sorted(ranked_deps[gov].items()):
+                # overwrite the nuc and lbl of the head node, using the
+                # dependencies of this rank
+                dep_nucs = [dtree.nucs[x] for x in deps]
+                dep_lbls = [dtree.labels[x] for x in deps]
+                if all(x == NUC_N for x in dep_nucs):
+                    # all nuclei must have the same label, to denote
+                    # a unique multinuclear relation
+                    assert len(set(dep_lbls)) == 1
+                    gov_lbl = dep_lbls[0]
+                elif all(x == NUC_S for x in dep_nucs):
+                    gov_lbl = 'span'
+                else:
+                    raise ValueError('Deps have different nuclearities')
+                gov_node = subtrees[gov].label()
+                gov_node.nuclearity = NUC_N
+                gov_node.rel = gov_lbl
+                # create one projection node for the head + the dependencies
+                # of this rank
+                proj_lbl = dtree.labels[gov]
+                proj_nuc = dtree.nucs[gov]
+                proj_children = [subtrees[x] for x in sorted([gov] + deps)]
+                proj_edu_span = (proj_children[0].label().edu_span[0],
+                                 proj_children[-1].label().edu_span[1])
+                proj_txt_span = Span(proj_children[0].label().span.char_start,
+                                     proj_children[-1].label().span.char_end)
+                proj_node = Node(proj_nuc, proj_edu_span, proj_txt_span,
+                                 proj_lbl, context=None)  # TODO context?
+                subtrees[gov] = RSTTree(proj_node, proj_children,
+                                        origin=origin)
+    # create top node and whole tree
+    gov = 0
+    proj_lbl = '---'
+    proj_nuc = NUC_R
+    if (ranked_deps[gov].keys() == [0]
+        and len(ranked_deps[gov][0]) == 1):
+        # unique real root => use its projection as the root of the ctree
+        unique_real_root = ranked_deps[gov][0][0]
+        proj = subtrees[unique_real_root].label()
+        proj_node.nuclearity = proj_nuc
+        proj_node.rel = proj_lbl
+        subtrees[0] = subtrees[unique_real_root]
+    else:
+        # > 1 real root: create projections until we span all
+        # 2016-09-14 disable support for >1 real root
+        raise ValueError("Fragile: RSTTree from dtree with >1 real root")
+        #
+        max_rnk = max(ranked_deps[gov].keys())
+        for rnk, deps in sorted(ranked_deps[gov].items()):
+            # overwrite the nuc and lbl of the head node, using the
+            # dependencies of this rank
+            dep_nucs = [dtree.nucs[x] for x in deps]
+            dep_lbls = [dtree.labels[x] for x in deps]
+            if all(x == NUC_N for x in dep_nucs):
+                # all nuclei must have the same label, to denote
+                # a unique multinuclear relation
+                assert len(set(dep_lbls)) == 1
+                gov_lbl = dep_lbls[0]
+            elif all(x == NUC_S for x in dep_nucs):
+                gov_lbl = 'span'
+            else:
+                raise ValueError('Deps have different nuclearities')
+            gov_node = subtrees[gov].label()
+            gov_node.nuclearity = NUC_N
+            gov_node.rel = gov_lbl
+            # create one projection node for the head + the dependencies
+            # of this rank
+            proj_lbl = dtree.labels[gov]
+            proj_nuc = dtree.nucs[gov]
+            proj_children = [subtrees[x] for x in sorted([gov] + deps)]
+            proj_edu_span = (proj_children[0].label().edu_span[0],
+                             proj_children[-1].label().edu_span[1])
+            proj_txt_span = Span(proj_children[0].label().span.char_start,
+                                 proj_children[-1].label().span.char_end)
+            proj_node = Node(proj_nuc, proj_edu_span, proj_txt_span,
+                             proj_lbl, context=None)  # TODO context?
+            subtrees[gov] = RSTTree(proj_node, proj_children,
+                                    origin=origin)
+    # final RST ctree
+    rst_tree = subtrees[0]
+    return rst_tree

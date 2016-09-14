@@ -813,6 +813,12 @@ def gather_leaky_stats():
 
     """
     nodes_train, rels_train, edus_train, sents_train, paras_train = load_corpus_as_dataframe_new(selection='train', binarize=False)
+
+    # 2016-09-14
+    print('test')
+    nodes_test, rels_test, edus_test, sents_test, paras_test = load_corpus_as_dataframe_new(selection='test', binarize=False)
+    # end 2016-09-14
+
     # print(rels_train)
     # as of version 0.17, pandas handles missing boolean values by degrading
     # column type to object, which makes boolean selection return true for
