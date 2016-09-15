@@ -705,11 +705,6 @@ class TreeParts(namedtuple("TreeParts_", "edu edu_span span rel kids")):
 # pylint: enable=R0903, W0232
 
 
-# TODO function that collapses chains of NN dependencies with same label
-# from RstDepTree to RstDepTree ? or to RSTTree ?
-# use dtree.nary_enc
-
-
 def deptree_to_rst_tree(dtree):
     """Create an RSTTree from an RstDepTree.
 
@@ -762,7 +757,7 @@ def deptree_to_rst_tree(dtree):
     # per rank of dependents ; each time a projection node is created,
     # we use the set of dependencies to overwrite the nuc and label of
     # its children
-    for height in range(1, max(heights)):
+    for height in range(1, max(heights)):  # leave fake root out, see below
         nodes = govs_by_height[height]
         for gov in nodes:
             max_rnk = max(ranked_deps[gov].keys())
@@ -797,8 +792,9 @@ def deptree_to_rst_tree(dtree):
                 subtrees[gov] = RSTTree(proj_node, proj_children,
                                         origin=origin)
     # create top node and whole tree
+    # this is where we handle the fake root
     gov = 0
-    proj_lbl = '---'
+    proj_lbl = 'ROOT'  # FIXME or '---' ?
     proj_nuc = NUC_R
     if (ranked_deps[gov].keys() == [0]
         and len(ranked_deps[gov][0]) == 1):
