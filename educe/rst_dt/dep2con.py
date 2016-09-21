@@ -188,7 +188,7 @@ class InsideOutAttachmentRanker(object):
 
             unique_heads = set(dtree.heads[1:])  # exclude head of fake root
             for head in unique_heads:
-                rank_idx = 0  # init rank
+                rank_idx = 1  # init rank
 
                 targets = [i for i, hd in enumerate(dtree.heads)
                            if hd == head]
@@ -796,10 +796,10 @@ def deptree_to_rst_tree(dtree):
     gov = 0
     proj_lbl = 'ROOT'  # FIXME or '---' ?
     proj_nuc = NUC_R
-    if (ranked_deps[gov].keys() == [0]
-        and len(ranked_deps[gov][0]) == 1):
+    if (ranked_deps[gov].keys() == [1]
+        and len(ranked_deps[gov][1]) == 1):
         # unique real root => use its projection as the root of the ctree
-        unique_real_root = ranked_deps[gov][0][0]
+        unique_real_root = ranked_deps[gov][1][0]
         proj = subtrees[unique_real_root].label()
         proj_node.nuclearity = proj_nuc
         proj_node.rel = proj_lbl
