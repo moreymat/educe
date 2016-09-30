@@ -19,6 +19,11 @@ from educe.external.parser import SearchableTree
 from ..internalutil import treenode
 
 
+# nuclearities
+NUC_N = "Nucleus"
+NUC_S = "Satellite"
+NUC_R = "Root"
+
 # ghostscript parameters to generate images in different formats
 _GS_PARAMS = {
     'png': '-sDEVICE=png16m -r90 -dTextAlphaBits=4 -dGraphicsAlphaBits=4',
@@ -235,13 +240,13 @@ class Node(object):
         can only either be nucleus/satellite or much more rarely,
         root.
         """
-        return self.nuclearity == 'Nucleus'
+        return self.nuclearity == NUC_N
 
     def is_satellite(self):
         """
         A node can either be a nucleus, a satellite, or a root node.
         """
-        return self.nuclearity == 'Satellite'
+        return self.nuclearity == NUC_S
 
 
 # pylint: disable=R0904, E1103
@@ -595,7 +600,7 @@ def _chain_to_binary(rel, kids):
         rnode = treenode(right)
         edu_span = (lnode.edu_span[0], rnode.edu_span[1])
         span = lnode.span.merge(rnode.span)
-        newnode = Node('Nucleus', edu_span, span, rel)
+        newnode = Node(NUC_N, edu_span, span, rel)
         return RSTTree(newnode, [left, right], origin=left.origin)
     return functools.reduce(builder, kids[::-1])
 

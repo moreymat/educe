@@ -12,13 +12,8 @@ import itertools
 
 import numpy as np
 
-from .annotation import EDU, _binarize
+from .annotation import EDU, _binarize, NUC_N, NUC_S, NUC_R
 from ..internalutil import treenode
-
-
-NUC_N = "Nucleus"
-NUC_S = "Satellite"
-NUC_R = "Root"
 
 
 class RstDtException(Exception):
