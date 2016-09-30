@@ -118,6 +118,11 @@ def config_argparser(parser):
                         default='none',
                         help="List of fragmented EDUs")
     # end WIP same-unit
+    # 2016-09-30 enable to choose between unordered and ordered pairs
+    parser.add_argument('--unordered_pairs',
+                        action='store_true',
+                        help=("Instances are unordered pairs: "
+                              "(src, tgt) == (tgt, src)"))
     parser.set_defaults(func=main)
 
 
@@ -128,7 +133,7 @@ def config_argparser(parser):
 def extract_dump_instances(docs, instance_generator, feature_set,
                            lecsie_data_dir, vocabulary,
                            split_feat_space, labels,
-                           live, output, corpus,
+                           live, ordered_pairs, output, corpus,
                            doc_cdus=None):
     """Extract and dump instances.
 
@@ -146,7 +151,16 @@ def extract_dump_instances(docs, instance_generator, feature_set,
         Splitter for feature space
     labels: filepath?
         Path to labelset?
-    doc_cdus: list of list of CDUs
+    live: TODO
+        TODO
+    ordered_pairs: boolean
+        If True, DU pairs (instances) are ordered pairs, i.e.
+        (src, tgt) <> (tgt, src).
+    output: TODO
+        TODO
+    corpus: TODO
+        TODO
+    doc_cdus: list of list of CDUs, optional
         List of CDUs for each document. WIP
     """
     # get instance generator and its descriptor
@@ -199,6 +213,7 @@ def extract_dump_instances(docs, instance_generator, feature_set,
         else:
             labelset = None
         labtor = DocumentLabelExtractor(instance_gen,
+                                        ordered_pairs=ordered_pairs,
                                         labelset=labelset)
         if labels is not None:
             labtor.fit(docs)
@@ -386,6 +401,7 @@ def main(args):
     t1 = time.time()
     print('[{:.4f} s]'.format(t1 - t0))
 
+    ordered_pairs = not args.unordered_pairs  # 2016-09-30
     if args.instances == 'same-unit':
         # WIP 2016-07-08 pre-process to find same-units
         instance_generator = ('same-unit',
@@ -395,7 +411,8 @@ def main(args):
     elif args.instances == 'edu-pairs':
         # all pairs of EDUs
         instance_generator = ('edu-pairs',
-                              lambda doc: doc.all_edu_pairs(ordered=True))
+                              lambda doc: doc.all_edu_pairs(
+                                  ordered=ordered_pairs))
         split_feat_space = 'dir_sent'
         doc_cdus = None  # WIP
     elif args.instances == 'frag-pairs':
@@ -438,6 +455,10 @@ def main(args):
     extract_dump_instances(docs, instance_generator, feature_set,
                            lecsie_data_dir,
                            args.vocabulary,
-                           split_feat_space, args.labels,
-                           live, args.output, args.corpus,
+                           split_feat_space,
+                           args.labels,
+                           live,
+                           ordered_pairs,
+                           args.output,
+                           args.corpus,
                            doc_cdus=doc_cdus)

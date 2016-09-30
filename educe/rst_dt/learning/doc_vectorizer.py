@@ -16,12 +16,14 @@ class DocumentLabelExtractor(object):
     """Label extractor for the RST-DT treebank."""
 
     def __init__(self, instance_generator,
+                 ordered_pairs=True,
                  unknown_label='__UNK__',
                  labelset=None):
         """
         instance_generator to enumerate the instances from a doc
         """
         self.instance_generator = instance_generator
+        self.ordered_pairs = ordered_pairs  # 2016-09-30
         self.unknown_label = unknown_label
         self.labelset = labelset
 
@@ -41,7 +43,8 @@ class DocumentLabelExtractor(object):
         """
         edu_pairs = self.instance_generator(doc)
         # extract one label per EDU pair
-        labels = doc.relations(edu_pairs)
+        # WIP 2016-09-30: ordered
+        labels = doc.relations(edu_pairs, ordered=self.ordered_pairs)
         return labels
 
     def _instance_labels(self, raw_documents):

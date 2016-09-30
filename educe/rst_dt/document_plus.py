@@ -467,13 +467,54 @@ class DocumentPlus(object):
         # DEBUG?
         return du_pairs
 
-    def relations(self, du_pairs):
-        """Get the relation that holds in each of the edu_pairs"""
+    def relations(self, du_pairs, lbl_type='rel', ordered=True):
+        """Get the relation that holds in each of the DU pairs.
+
+        As of 2016-09-30, this function has a unique caller:
+        doc_vectorizer.DocumentLabelExtractor._extract_labels() .
+
+        Parameters
+        ----------
+        du_pairs: [(DU, DU)]
+            List of DU pairs.
+        lbl_type: one of {'rel', 'rel+nuc'}
+            Type of label.
+        ordered: boolean, defaults to True
+            If True, du_pairs are considered ordered, otherwise the
+            label of either (edu1, edu2) or (edu2, edu1) is returned (if
+            not None).
+
+        Returns
+        -------
+        erels: [str]
+            Relation for each pair of DUs.
+        """
         if not self.deptree:
             return [None for epair in du_pairs]
 
-        rels = {(src, tgt): rel
-                for src, tgt, rel in self.deptree.get_dependencies()}
+        if ordered:
+            rels = {(src, tgt): rel
+                    for src, tgt, rel
+                    in self.deptree.get_dependencies(lbl_type=lbl_type)}
+        else:
+            # on unordered pairs, if dep < gov we need to invert the
+            # nuclearity so that it encodes direction of attachment:
+            # NS/NN for right attachment, SN for left
+            rels = dict()
+            for src, tgt, rel in self.deptree.get_dependencies(
+                    lbl_type=lbl_type):
+                if src.num < tgt.num:
+                    # right attachment
+                    u_pair = (src, tgt)
+                    new_rel = rel
+                else:
+                    # left attachment
+                    u_pair = (tgt, src)
+                    new_rel = ((rel[0], rel[1][1] + rel[1][0])
+                               if lbl_type == 'nuc+rel'
+                               else rel)
+                rels[u_pair] = new_rel
+
         # WIP fragmented EDUs: map from identifier to EDU
         id2edu = {e.identifier(): e for e in self.edus}
 
