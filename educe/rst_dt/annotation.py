@@ -359,6 +359,25 @@ class RSTTree(SearchableTree, Standoff):
         """
         return treenode(self).edu_span
 
+    def get_spans(self):
+        """Get the spans of a constituency tree, except for the root node.
+
+        This corresponds to the spans used in the PARSEVAL metric modified
+        for discourse, as described in (Marcu 2000) and implemented in
+        Joty's evaluation scripts.
+
+        Each span is described by a triplet (edu_span, nuclearity,
+        relation).
+        """
+        tnodes = [subtree.label()  # was: educe.internalutil.treenode(subtree)
+                  for root_child in self if isinstance(root_child, RSTTree)
+                  for subtree in root_child.subtrees()]
+        # print(tnodes)  # DEBUG
+        # raise ValueError('debug')
+        spans = [(tn.edu_span, tn.nuclearity, tn.rel)
+                 for tn in tnodes]
+        return spans
+
     def text(self):
         """
         Return the text corresponding to this RST subtree.
@@ -410,6 +429,26 @@ class SimpleRSTTree(SearchableTree, Standoff):
     def _members(self):
         return list(self)  # children
 
+    def get_spans(self):
+        """Get the spans of a constituency tree, except for the root node.
+
+        This corresponds to the spans used in the PARSEVAL metric modified
+        for discourse, as described in (Marcu 2000) and implemented in
+        Joty's evaluation scripts.
+
+        Each span is described by a triplet (edu_span, nuclearity,
+        relation).
+        """
+        tnodes = [subtree.label()  # was: educe.internalutil.treenode(subtree)
+                  for root_child in self
+                  if isinstance(root_child, SimpleRSTTree)
+                  for subtree in root_child.subtrees()]
+        # print(tnodes)  # DEBUG
+        # raise ValueError('debug')
+        spans = [(tn.edu_span, tn.nuclearity, tn.rel)
+                 for tn in tnodes]
+        return spans
+
     @classmethod
     def from_rst_tree(cls, tree):
         """
@@ -428,6 +467,7 @@ class SimpleRSTTree(SearchableTree, Standoff):
         if len(tree) == 1:
             node = copy.copy(treenode(tree))
             node.rel = "leaf"
+            node.nuclearity = "leaf"  # WIP
             return SimpleRSTTree(node, tree, tree.origin)
         else:
             left = tree[0]
@@ -436,6 +476,9 @@ class SimpleRSTTree(SearchableTree, Standoff):
             lnode = treenode(left)
             rnode = treenode(right)
             node.rel = rnode.rel if rnode.is_satellite() else lnode.rel
+            # WIP move nuclearity up too
+            node.nuclearity = ''.join(x.label().nuclearity[0] for x in tree)
+            # end WIP
             kids = [cls._from_binary_rst_tree(kid) for kid in tree]
             return SimpleRSTTree(node, kids, tree.origin)
 
@@ -479,7 +522,7 @@ class SimpleRSTTree(SearchableTree, Standoff):
             return SimpleRSTTree(node, kids, tree.origin)
 
     @classmethod
-    def to_binary_rst_tree(cls, tree, rel='ROOT'):
+    def to_binary_rst_tree(cls, tree, rel='ROOT', nuc='ROOT'):
         """
         Build and return a binary `RSTTree` from a `SimpleRSTTree`.
 
@@ -505,6 +548,7 @@ class SimpleRSTTree(SearchableTree, Standoff):
         if len(tree) == 1:
             node = copy.copy(treenode(tree))
             node.rel = rel
+            node.nuclearity = nuc
             return RSTTree(node, tree, tree.origin)
         else:
             left = tree[0]
@@ -515,17 +559,22 @@ class SimpleRSTTree(SearchableTree, Standoff):
             # standard RST trees mark relations on the satellite
             # child (mononuclear relations) or on each nucleus
             # child (multinuclear relations)
-            sat_idx = [i for i, kid in enumerate(tree)
-                       if treenode(kid).is_satellite()]
+            sat_idx = [i for i, nuc in enumerate(node.nuclearity)
+                       if nuc == NUC_S[0]]
             if sat_idx:
                 # mononuclear
-                kids = [(cls.to_binary_rst_tree(kid, rel=node.rel)
-                         if treenode(kid).is_satellite() else
-                         cls.to_binary_rst_tree(kid, rel='span'))
-                        for kid in tree]
+                kids = [
+                    cls.to_binary_rst_tree(
+                        kid,
+                        rel=(node.rel if node.nuclearity[i] == NUC_S[0]
+                             else 'span'),
+                        nuc=(NUC_S if node.nuclearity[i] == NUC_S[0]
+                             else NUC_N))
+                    for i, kid in enumerate(tree)
+                ]
             else:
                 # multinuclear
-                kids = [cls.to_binary_rst_tree(kid, rel=node.rel)
+                kids = [cls.to_binary_rst_tree(kid, rel=node.rel, nuc=NUC_N)
                         for kid in tree]
             # update the rel in the current node
             node.rel = rel

@@ -399,11 +399,26 @@ class DocumentPlus(object):
 
         return self
 
-    def all_edu_pairs(self):
-        """Generate all EDU pairs of a document"""
+    def all_edu_pairs(self, ordered=True):
+        """Generate all EDU pairs of a document.
+
+        Parameters
+        ----------
+        ordered: boolean, defaults to True
+            If True, generate all ordered pairs of EDUs, otherwise
+            (half as many) unordered pairs.
+
+        Returns
+        -------
+        all_pairs: [(EDU, EDU)]
+            All pairs of EDUs in this document.
+        """
         edus = self.edus
-        all_pairs = [epair for epair in itertools.product(edus, edus[1:])
-                     if epair[0] != epair[1]]
+        if ordered:
+            all_pairs = [epair for epair in itertools.product(edus, edus[1:])
+                         if epair[0] != epair[1]]
+        else:
+            all_pairs = list(itertools.combinations(edus, 2))
         return all_pairs
 
     def du_pairs(self, cdus=None):

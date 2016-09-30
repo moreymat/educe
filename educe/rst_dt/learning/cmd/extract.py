@@ -395,7 +395,7 @@ def main(args):
     elif args.instances == 'edu-pairs':
         # all pairs of EDUs
         instance_generator = ('edu-pairs',
-                              lambda doc: doc.all_edu_pairs())
+                              lambda doc: doc.all_edu_pairs(ordered=True))
         split_feat_space = 'dir_sent'
         doc_cdus = None  # WIP
     elif args.instances == 'frag-pairs':

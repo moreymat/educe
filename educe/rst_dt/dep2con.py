@@ -750,7 +750,7 @@ def deptree_to_rst_tree(dtree):
     for i in range(1, len(dtree.edus)):
         node = Node(dtree.nucs[i], (i, i), dtree.edus[i].span,
                     dtree.labels[i], context=None)  # TODO context?
-        children = []
+        children = [dtree.edus[i]]  # WIP
         subtrees[i] = RSTTree(node, children, origin=origin)
 
     # * create internal nodes: for each governor, create one projection
