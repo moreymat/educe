@@ -564,8 +564,8 @@ class SimpleRSTTree(SearchableTree, Standoff):
             # standard RST trees mark relations on the satellite
             # child (mononuclear relations) or on each nucleus
             # child (multinuclear relations)
-            sat_idx = [i for i, nuc in enumerate(node.nuclearity)
-                       if nuc == NUC_S[0]]
+            sat_idx = [i for i, nuc0 in enumerate(node.nuclearity)
+                       if nuc0 == NUC_S[0]]
             if sat_idx:
                 # mononuclear
                 kids = [
@@ -581,8 +581,9 @@ class SimpleRSTTree(SearchableTree, Standoff):
                 # multinuclear
                 kids = [cls.to_binary_rst_tree(kid, rel=node.rel, nuc=NUC_N)
                         for kid in tree]
-            # update the rel in the current node
+            # update the rel and nuc in the current node
             node.rel = rel
+            node.nuclearity = nuc
             return RSTTree(node, kids, tree.origin)
 
 
