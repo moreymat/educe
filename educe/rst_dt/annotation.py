@@ -364,23 +364,34 @@ class RSTTree(SearchableTree, Standoff):
         """
         return treenode(self).edu_span
 
-    def get_spans(self):
-        """Get the spans of a constituency tree, except for the root node.
-
-        This corresponds to the spans used in the PARSEVAL metric modified
-        for discourse, as described in (Marcu 2000) and implemented in
-        Joty's evaluation scripts.
+    def get_spans(self, subtree_filter=None, exclude_root=False):
+        """Get the spans of a constituency tree.
 
         Each span is described by a triplet (edu_span, nuclearity,
         relation).
+
+        Parameters
+        ----------
+        subtree_filter: function, defaults to None
+            Function to filter all local trees.
+
+        exclude_root: boolean, defaults to False
+            If True, exclude the span of the root node. This cannot be
+            expressed with `subtree_filter` because the latter is limited
+            to properties local to each subtree in isolation. Or maybe I
+            just missed something.
+
+        Returns
+        -------
+        spans: list of tuple((int, int), str, str)
+            List of tuples, each describing a span with a tuple
+            ((edu_start, edu_end), nuclearity, relation).
         """
-        tnodes = [subtree.label()  # was: educe.internalutil.treenode(subtree)
-                  for root_child in self if isinstance(root_child, RSTTree)
-                  for subtree in root_child.subtrees()]
-        # print(tnodes)  # DEBUG
-        # raise ValueError('debug')
-        spans = [(tn.edu_span, tn.nuclearity, tn.rel)
-                 for tn in tnodes]
+        tnodes = [x.label() for x in self.subtrees(filter=subtree_filter)
+                  if isinstance(x, RSTTree)]
+        if exclude_root:
+            tnodes = tnodes[1:]
+        spans = [(tn.edu_span, tn.nuclearity, tn.rel) for tn in tnodes]
         return spans
 
     def text(self):
@@ -434,24 +445,34 @@ class SimpleRSTTree(SearchableTree, Standoff):
     def _members(self):
         return list(self)  # children
 
-    def get_spans(self):
-        """Get the spans of a constituency tree, except for the root node.
-
-        This corresponds to the spans used in the PARSEVAL metric modified
-        for discourse, as described in (Marcu 2000) and implemented in
-        Joty's evaluation scripts.
+    def get_spans(self, subtree_filter=None, exclude_root=False):
+        """Get the spans of a constituency tree.
 
         Each span is described by a triplet (edu_span, nuclearity,
         relation).
+
+        Parameters
+        ----------
+        subtree_filter: function, defaults to None
+            Function to filter all local trees.
+
+        exclude_root: boolean, defaults to False
+            If True, exclude the span of the root node. This cannot be
+            expressed with `subtree_filter` because the latter is limited
+            to properties local to each subtree in isolation. Or maybe I
+            just missed something.
+
+        Returns
+        -------
+        spans: list of tuple((int, int), str, str)
+            List of tuples, each describing a span with a tuple
+            ((edu_start, edu_end), nuclearity, relation).
         """
-        tnodes = [subtree.label()  # was: educe.internalutil.treenode(subtree)
-                  for root_child in self
-                  if isinstance(root_child, SimpleRSTTree)
-                  for subtree in root_child.subtrees()]
-        # print(tnodes)  # DEBUG
-        # raise ValueError('debug')
-        spans = [(tn.edu_span, tn.nuclearity, tn.rel)
-                 for tn in tnodes]
+        tnodes = [x.label() for x in self.subtrees(filter=subtree_filter)
+                  if isinstance(x, SimpleRSTTree)]
+        if exclude_root:
+            tnodes = tnodes[1:]
+        spans = [(tn.edu_span, tn.nuclearity, tn.rel) for tn in tnodes]
         return spans
 
     @classmethod
