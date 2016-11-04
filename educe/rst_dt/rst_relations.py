@@ -150,14 +150,44 @@ RELATION_REPRESENTATIVES = {
 #   multinuclear "Sequence" relation
 # * the satellite of "elaboration-set-member" can be a multinuclear "List"
 #   relation where each member elaborates on part of the nucleus
-# * 
+# * "example" should be chosen rather than "elaboration-set-member" if not
+#   the other members of the set are not known or specified
+# * "explanation-argumentative" differs from "evidence" in that the writer
+#   has no intention to convince the reader of a point in the former, and
+#   it differs from "reason" because the latter involves the will or
+#   intentions of the agent (hence the agent must be animate)
+# * "hypothetical" presents a more abstract scenario than "condition"
+# * "inverted-sequence" is "sequence" with elements in reverse chronological
+#   order
+# * "List" is for situations where "comparison", "contrast", or other
+#   multinuclear relations
+# * "manner" is less "goal-oriented" than "means", describes more the style
+#   of an action
+# * "preference" compares two situations/acts/events/... and assigns a clear
+#   preference for one of those
+# * "purpose" differs from "result" in that the satellite is only putative
+#   (yet to be achieved) in the former, factual (achieved) in the latter;
+#    can be confused with "elaboration-object-attribute-e" but the latter
+#    can modify a noun phrase as a relative
+# * "restatement" just reiterates the info with slightly different wording,
+#   as opposed to e.g. interpretation
+# * "temporal-before" is for mononuclear relations, usually the satellite is
+#   realized as a subordinate clause that follows the nucleus ;
+#   if the second (in the linear order) event happens before the first but
+#   the relation is multinuclear, use "Inverted-Sequence".
+# * "temporal-after" is for mononuclear relations (see "temporal-before") ;
+#   for multinuclear relations with e1 < e2 use "Sequence".
+# * "topic-shift" differs from "topic-drift": in the latter, the same elements
+#   are in focus whereas it is not the case in the former
 
 
 # embedded relations explicitly present in the annotation guide
 EMBEDDED_RELATIONS = [
     "elaboration-additional-e",
     "elaboration-object-attribute-e",
-    "elaboration-set-member-e"
+    "elaboration-set-member-e",
+    "interpretation-s-e",
+    "manner-e",
 ]
 
 
