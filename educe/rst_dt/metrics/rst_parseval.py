@@ -19,6 +19,12 @@ LBL_FNS = [
     ('S+N', lambda span: span[1]),
     ('S+R', lambda span: span[2]),
     ('S+N+R', lambda span: '{}-{}'.format(span[2], span[1])),
+    # WIP 2016-11-10 add head to evals
+    ('S+H', lambda span: span[3]),
+    ('S+N+H', lambda span: '{}-{}'.format(span[1], span[3])),
+    ('S+R+H', lambda span: '{}-{}'.format(span[2], span[3])),
+    ('S+N+R+H', lambda span: '{}-{}'.format(span[2], span[1])),
+    # end WIP head
 ]
 
 
@@ -144,7 +150,8 @@ def rst_parseval_report(ctree_true, ctree_pred, ctree_type='RST',
 
     # select metrics and the corresponding functions
     if metric_types is None:
-        metric_types = ['S', 'S+N', 'S+R', 'S+N+R']
+        # metric_types = ['S', 'S+N', 'S+R', 'S+N+R']
+        metric_types = [x[0] for x in LBL_FNS]
     if set(metric_types) - set(x[0] for x in LBL_FNS):
         raise ValueError('Unknown metric types in {}'.format(metric_types))
     metric2lbl_fn = dict(LBL_FNS)

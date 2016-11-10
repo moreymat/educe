@@ -220,7 +220,7 @@ class Node(object):
     def __str__(self):
         return "%s %s %s" % (
             "%s-%s" % self.edu_span,
-            self.nuclearity[0],
+            self.nuclearity,
             self.rel)
 
     def __eq__(self, other):
@@ -263,6 +263,16 @@ class RSTTree(SearchableTree, Standoff):
         """
         SearchableTree.__init__(self, node, children)
         Standoff.__init__(self, origin)
+        # WIP 2016-11-10 store num of head in node
+        if len(children) == 1 and isinstance(children[0], EDU):
+            # pre-terminal: head is num of terminal (EDU)
+            node.head = children[0].num
+        else:
+            # internal node: head is head of the leftmost nucleus child
+            lnuc = [kid for kid in children
+                    if kid.label().nuclearity == NUC_N][0]
+            node.head = lnuc.label().head
+        # end WIP head
 
     def set_origin(self, origin):
         """
@@ -391,7 +401,9 @@ class RSTTree(SearchableTree, Standoff):
                   if isinstance(x, RSTTree)]
         if exclude_root:
             tnodes = tnodes[1:]
-        spans = [(tn.edu_span, tn.nuclearity, tn.rel) for tn in tnodes]
+        # 2016-11-10 add a 4th element: head
+        spans = [(tn.edu_span, tn.nuclearity, tn.rel, tn.head)
+                 for tn in tnodes]
         return spans
 
     def text(self):
@@ -429,6 +441,14 @@ class SimpleRSTTree(SearchableTree, Standoff):
         """
         SearchableTree.__init__(self, node, children)
         Standoff.__init__(self, origin)
+        # WIP 2016-11-10 store num of head in node
+        if len(children) == 1 and isinstance(children[0], EDU):
+            node.head = children[0].num
+        else:
+            # head is head of the leftmost nucleus child
+            lnuc_idx = node.nuclearity.index('N')
+            node.head = children[lnuc_idx].label().head
+        # end WIP head
 
     def set_origin(self, origin):
         """
@@ -472,7 +492,9 @@ class SimpleRSTTree(SearchableTree, Standoff):
                   if isinstance(x, SimpleRSTTree)]
         if exclude_root:
             tnodes = tnodes[1:]
-        spans = [(tn.edu_span, tn.nuclearity, tn.rel) for tn in tnodes]
+        # 2016-11-10 add a 4th element: head
+        spans = [(tn.edu_span, tn.nuclearity, tn.rel, tn.head)
+                 for tn in tnodes]
         return spans
 
     @classmethod
