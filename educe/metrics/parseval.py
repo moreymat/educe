@@ -233,6 +233,8 @@ def parseval_detailed_report(ctree_true, ctree_pred, exclude_root=False,
         # * span = (span_beg, span_end)
         # * lbl = (nuc, rel)
         lbl_fn = ('Labelled Span', lambda span_lbl: span_lbl[1])
+    # FIXME param lbl_fn is in fact a pair (metric_type, lbl_fn)
+    metric_type, lbl_fn = lbl_fn
 
     # call with average=None to compute per-class scores, then
     # compute average here and print it
@@ -269,13 +271,9 @@ def parseval_detailed_report(ctree_true, ctree_pred, exclude_root=False,
             values += ["{0:0.{1}f}".format(v, digits)]
         values += ["{0}".format(s_true[i])]
         values += ["{0}".format(s_pred[i])]
-        if average is None:
-            # print per-class scores for average=None only
-            report += fmt % tuple(values)
+        report += fmt % tuple(values)
 
-    if average is None:
-        # print only if per-class scores
-        report += '\n'
+    report += '\n'
 
     # last line ; compute averages
     values = [last_line_heading]
