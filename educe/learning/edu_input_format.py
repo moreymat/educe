@@ -10,6 +10,10 @@ import csv
 import six
 
 from .svmlight_format import dump_svmlight_file
+# WIP load_edu_input_file
+from educe.annotation import Span
+from educe.corpus import FileId
+from educe.rst_dt.annotation import EDU as RstEDU
 
 # pylint: disable=invalid-name
 # a lot of the names here are chosen deliberately to
@@ -64,6 +68,65 @@ def dump_edu_input_file(doc, f):
     """
     with open(f, 'wb') as f:
         _dump_edu_input_file(doc, f)
+
+
+def _load_edu_input_file(f, edu_type):
+    """Do load."""
+    edus = []
+    edu2sent = []
+
+    if edu_type == 'rst-dt':
+        EDU = RstEDU
+
+    reader = csv.reader(f, dialect=csv.excel_tab)
+    for line in reader:
+        if not line:
+            continue
+        edu_gid, edu_txt, grouping, subgroup, edu_start, edu_end = line
+        # no subdoc in RST-DT, hence no orig_subdoc in global_id for EDU
+        orig_doc, edu_lid = edu_gid.rsplit('_', 1)
+        assert grouping == orig_doc  # both are the doc_name
+        origin = FileId(orig_doc, None, None, None)
+        edu_num = int(edu_lid)
+        edu_txt = edu_txt.decode('utf-8')
+        edu_start = int(edu_start)
+        edu_end = int(edu_end)
+        edu_span = Span(edu_start, edu_end)
+        edus.append(
+            EDU(edu_num, edu_span, edu_txt, origin=origin)
+        )
+        # edu2sent
+        sent_idx = int(subgroup.split('_sent')[1])
+        edu2sent.append(sent_idx)
+    return {'filename': f.name,
+           'edus': edus,
+           'edu2sent': edu2sent}
+
+
+def load_edu_input_file(f, edu_type='rst-dt'):
+    """Load a list of EDUs from a file in the EDU input format.
+
+    Parameters
+    ----------
+    f : str
+        Path to the .edu_input file
+
+    edu_type : str, one of {'rst-dt'}
+        Type of EDU to load ; 'rst-dt' is the only type currently
+        allowed but more should come (unless a unifying type for EDUs
+        emerge, rendering this parameter useless).
+
+    Returns
+    -------
+    data: dict
+        Bunch-like object with interesting fields "filename", "edus",
+        "edu2sent".
+    """
+    if edu_type != 'rst-dt':
+        raise NotImplementedError(
+            "edu_type {} not yet implemented".format(edu_type))
+    with codecs.open(f, 'rb', 'utf-8') as f:
+        return _load_edu_input_file(f, edu_type)
 
 
 # pairings
