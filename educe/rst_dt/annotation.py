@@ -80,9 +80,7 @@ class EDU(Standoff):
     """
     _SUMMARY_LEN = 20
 
-    def __init__(self, num, span, text,
-                 context=None,
-                 origin=None):
+    def __init__(self, num, span, text, context=None, origin=None):
         super(EDU, self).__init__(origin)
 
         self.num = num
@@ -190,8 +188,7 @@ class Node(object):
     A node in an `RSTTree` or `SimpleRSTTree`.
     """
 
-    def __init__(self, nuclearity, edu_span, span, rel,
-                 context=None):
+    def __init__(self, nuclearity, edu_span, span, rel, context=None):
         self.nuclearity = nuclearity
         "one of Nucleus, Satellite, Root"
 
@@ -256,8 +253,7 @@ class RSTTree(SearchableTree, Standoff):
     raw RST discourse treebank one.
     """
 
-    def __init__(self, node, children,
-                 origin=None):
+    def __init__(self, node, children, origin=None):
         """
         See `educe.rst_dt.parse` to build trees from strings
         """
@@ -268,9 +264,24 @@ class RSTTree(SearchableTree, Standoff):
             # pre-terminal: head is num of terminal (EDU)
             node.head = children[0].num
         else:
-            # internal node: head is head of the leftmost nucleus child
-            lnuc = [kid for kid in children
-                    if kid.label().nuclearity == NUC_N][0]
+            # internal node
+            kids_nuclei = [i for i, kid in enumerate(children)
+                           if kid.label().nuclearity == NUC_N]
+            if len(kids_nuclei) == 1:
+                # 1 nucleus, 1-n satellites: n mono-nuc relations
+                pass
+            elif len(kids_nuclei) == len(children):
+                # all children are nuclei: 1 multi-nuc relation
+                kid_rels = [kid.label().rel for kid in children]
+                if len(set(kid_rels)) > 1:
+                    err_msg = ('W: More than one label in multi-nuclear'
+                               ' relation {}'.format(children))
+                    # print(err_msg)
+            else:
+                err_msg = 'E: Unknown pattern in children'
+                # print(err_msg)
+            # its head is the head of its leftmost nucleus child
+            lnuc = children[kids_nuclei[0]]
             node.head = lnuc.label().head
         # end WIP head
 
@@ -570,7 +581,7 @@ class SimpleRSTTree(SearchableTree, Standoff):
             return SimpleRSTTree(node, kids, tree.origin)
 
     @classmethod
-    def to_binary_rst_tree(cls, tree, rel='ROOT', nuc='ROOT'):
+    def to_binary_rst_tree(cls, tree, rel='---', nuc=NUC_R):
         """
         Build and return a binary `RSTTree` from a `SimpleRSTTree`.
 
@@ -581,17 +592,19 @@ class SimpleRSTTree(SearchableTree, Standoff):
 
         Parameters
         ----------
-        tree: SimpleRSTTree
+        tree : SimpleRSTTree
             SimpleRSTTree to convert
 
-        rel: string, optional
-            Relation that must decorate the root node of the output
+        rel : string, optional
+            Relation for the root node of the output
+
+        nuc : string, optional
+            Nuclearity for the root node of the output
 
         Returns
         -------
-        rtree: RSTTree
-            The (binary) RSTTree that corresponds to the given
-            SimpleRSTTree
+        rtree : RSTTree
+            The binary RSTTree corresponding to the given SimpleRSTTree.
         """
         if len(tree) == 1:
             node = copy.copy(treenode(tree))
