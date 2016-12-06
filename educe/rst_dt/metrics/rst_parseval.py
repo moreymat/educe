@@ -82,6 +82,7 @@ def rst_parseval_report(ctree_true, ctree_pred, ctree_type='RST',
                         subtree_filter=None, metric_types=None,
                         digits=4, print_support_pred=True,
                         per_doc=False,
+                        add_trivial_spans=False,
                         stringent=False):
     """Build a text report showing the PARSEVAL discourse metrics.
 
@@ -124,12 +125,17 @@ def rst_parseval_report(ctree_true, ctree_pred, ctree_type='RST',
         spans, is also displayed. This is useful for non-binary ctrees
         as the number of spans in _true and _pred can differ.
 
-    per_doc: boolean, defaults to False
+    per_doc : boolean, defaults to False
         If True, compute p, r, f for each doc separately then compute the
         mean of each score over docs. This is *not* the correct
         implementation, but it corresponds to that in DPLP.
 
-    stringent: boolean, defaults to False
+    add_trivial_spans : boolean, defaults to False
+        If True, trivial spans 0-0, 0-n, 1-n are added ; this is meant to
+        replicate the evaluation procedure of Li et al.'s dependency RST
+        parser.
+
+    stringent : boolean, defaults to False
         TODO
     """
     # filter root or leaves, depending on the type of ctree
@@ -162,7 +168,8 @@ def rst_parseval_report(ctree_true, ctree_pred, ctree_type='RST',
                            subtree_filter=subtree_filter, lbl_fns=lbl_fns,
                            digits=digits,
                            print_support_pred=print_support_pred,
-                           per_doc=per_doc)
+                           per_doc=per_doc,
+                           add_trivial_spans=add_trivial_spans)
 
 
 def rst_parseval_detailed_report(ctree_true, ctree_pred, ctree_type='RST',

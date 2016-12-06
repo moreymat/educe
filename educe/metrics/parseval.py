@@ -18,7 +18,8 @@ from educe.metrics.scores_structured import (precision_recall_fscore_support,
 
 def parseval_scores(ctree_true, ctree_pred, subtree_filter=None,
                     exclude_root=False, lbl_fn=None, labels=None,
-                    average=None, per_doc=False):
+                    average=None, per_doc=False,
+                    add_trivial_spans=False):
     """Compute PARSEVAL scores for ctree_pred wrt ctree_true.
 
     Parameters
@@ -71,6 +72,11 @@ def parseval_scores(ctree_true, ctree_pred, subtree_filter=None,
         The number of occurrences of each label in ``ctree_pred``.
 
     """
+    # WIP
+    if add_trivial_spans:
+        # force inclusion of root span 1-n
+        exclude_root = False
+
     # extract descriptions of spans from the true and pred trees
     spans_true = [ct.get_spans(subtree_filter=subtree_filter,
                                exclude_root=exclude_root)
@@ -78,6 +84,31 @@ def parseval_scores(ctree_true, ctree_pred, subtree_filter=None,
     spans_pred = [ct.get_spans(subtree_filter=subtree_filter,
                                exclude_root=exclude_root)
                   for ct in ctree_pred]
+    # WIP replicate eval in Li et al.'s dep parser
+    if add_trivial_spans:
+        # add trivial spans for 0-0 and 0-n
+        # this assumes n-n is the last span so we can get "n" as
+        # sp_list[-1][0][1]
+        spans_true = [sp_list + [((0, 0), "Root", '---', 0),
+                                 ((0, sp_list[-1][0][1]), "Root", '---', 0)]
+                      for sp_list in spans_true]
+        spans_pred = [sp_list + [((0, 0), "Root", '---', 0),
+                                 ((0, sp_list[-1][0][1]), "Root", '---', 0)]
+                      for sp_list in spans_pred]
+        # if label != span, change nuclearity to Satellite
+        spans_true = [[(x[0], "Satellite" if x[2].lower() != "span" else x[1],
+                        x[2], x[3]) for x in sp_list]
+                      for sp_list in spans_true]
+        spans_pred = [[(x[0], "Satellite" if x[2].lower() != "span" else x[1],
+                        x[2], x[3]) for x in sp_list]
+                      for sp_list in spans_pred]
+        if False:
+            for sp_true, sp_pred in zip(spans_true, spans_pred):
+                print(sp_true[0], sp_pred[0])
+                print(sp_true[-3], sp_pred[-3])
+                print(sp_true[-2], sp_pred[-2])
+                print(sp_true[-1], sp_pred[-1])
+    # end WIP
     # use lbl_fn to define labels
     if lbl_fn is not None:
         spans_true = [[(span[0], lbl_fn(span)) for span in spans]
@@ -122,7 +153,8 @@ def parseval_scores(ctree_true, ctree_pred, subtree_filter=None,
 
 def parseval_report(ctree_true, ctree_pred, exclude_root=False,
                     subtree_filter=None, lbl_fns=None, digits=4,
-                    print_support_pred=True, per_doc=False):
+                    print_support_pred=True, per_doc=False,
+                    add_trivial_spans=False):
     """Build a text report showing the PARSEVAL discourse metrics.
 
     This is the simplest report we need to generate, it corresponds
@@ -178,7 +210,8 @@ def parseval_report(ctree_true, ctree_pred, exclude_root=False,
         p, r, f1, s_true, s_pred, labels = parseval_scores(
             ctree_true, ctree_pred, subtree_filter=subtree_filter,
             exclude_root=exclude_root, lbl_fn=lbl_fn, labels=None,
-            average='micro', per_doc=per_doc)
+            average='micro', per_doc=per_doc,
+            add_trivial_spans=add_trivial_spans)
         metric_scores[metric_type] = (p, r, f1, s_true, s_pred)
 
     # fill report
