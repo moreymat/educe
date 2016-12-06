@@ -22,7 +22,7 @@ class DummyNuclearityClassifier(object):
 
     Parameters
     ----------
-    strategy: str
+    strategy : str
         Strategy to use to generate predictions.
 
         * "unamb_else_most_frequent": predicts multinuclear when the
@@ -30,14 +30,21 @@ class DummyNuclearityClassifier(object):
         set, mononuclear otherwise.
         * "most_frequent_by_rel": predicts the most frequent nuclearity
         for the given relation label in the training set.
+        * "constant": always predicts a constant label provided by the
+        user.
+
+    constant : str
+        The explicit constant as predicted by the "constant" strategy.
+        This parameter is useful only for the "constant" strategy.
 
     TODO
     ----
     complete after `sklearn.dummy.DummyClassifier`
     """
 
-    def __init__(self, strategy="unamb_else_most_frequent"):
+    def __init__(self, strategy="unamb_else_most_frequent", constant=None):
         self.strategy = strategy
+        self.constant = constant
 
     def fit(self, X, y):
         """Fit the dummy classifier.
@@ -53,12 +60,22 @@ class DummyNuclearityClassifier(object):
         y: array-like, shape = [n_samples]
             Target nuclearity array for each EDU of each RstDepTree.
         """
-        if self.strategy not in ["unamb_else_most_frequent",
-                                 "most_frequent_by_rel"]:
+        if self.strategy not in ("unamb_else_most_frequent",
+                                 "most_frequent_by_rel",
+                                 "constant"):
             raise ValueError("Unknown strategy type.")
 
+        if (self.strategy == "constant" and
+            self.constant not in (NUC_N, NUC_S)):
+            # ensure that the constant value provided is acceptable
+            raise ValueError("The constant target value must be "
+                             "{} or {}".format(NUC_N, NUC_S))
+
         # special processing: ROOT is considered multinuclear
-        multinuc_lbls = ['ROOT']
+        # 2016-12-06 I'm unsure what form "root" should have at this
+        # point, so all three possible values are currently included
+        # but we should trim this list down (MM)
+        multinuc_lbls = ['ROOT', 'root', '---']
         if self.strategy == "unamb_else_most_frequent":
             # FIXME automatically get these from the training set
             multinuc_lbls.extend(['joint', 'same-unit', 'textual'])
@@ -88,12 +105,17 @@ class DummyNuclearityClassifier(object):
         """
         y = []
         for dtree in X:
-            # NB: we condition multinuclear relations on (i > head)
-            yi = [(NUC_N if (i > head and rel in self.multinuc_lbls)
-                   else NUC_S)
-                  for i, (head, rel)
-                  in enumerate(itertools.izip(dtree.heads, dtree.labels))]
-            y.append(yi)
+            if self.strategy == "constant":
+                yi = [self.constant for rel in dtree.labels]
+                y.append(yi)
+            else:
+                # FIXME NUC_R for the root?
+                # NB: we condition multinuclear relations on (i > head)
+                yi = [(NUC_N if (i > head and rel in self.multinuc_lbls)
+                       else NUC_S)
+                      for i, (head, rel)
+                      in enumerate(itertools.izip(dtree.heads, dtree.labels))]
+                y.append(yi)
 
         return y
 
@@ -794,7 +816,8 @@ def deptree_to_rst_tree(dtree):
     # create top node and whole tree
     # this is where we handle the fake root
     gov = 0
-    proj_lbl = 'ROOT'  # FIXME or '---' ?
+    proj_lbl = '---'  # 2016-12-02: switch from "ROOT" to "---" so that
+    # _pred and _true have the same labels for their root nodes
     proj_nuc = NUC_R
     if (ranked_deps[gov].keys() == [1]
         and len(ranked_deps[gov][1]) == 1):
