@@ -84,6 +84,7 @@ def parseval_scores(ctree_true, ctree_pred, subtree_filter=None,
     spans_pred = [ct.get_spans(subtree_filter=subtree_filter,
                                exclude_root=exclude_root)
                   for ct in ctree_pred]
+
     # WIP replicate eval in Li et al.'s dep parser
     if add_trivial_spans:
         # add trivial spans for 0-0 and 0-n
@@ -102,12 +103,6 @@ def parseval_scores(ctree_true, ctree_pred, subtree_filter=None,
         spans_pred = [[(x[0], "Satellite" if x[2].lower() != "span" else x[1],
                         x[2], x[3]) for x in sp_list]
                       for sp_list in spans_pred]
-        if False:
-            for sp_true, sp_pred in zip(spans_true, spans_pred):
-                print(sp_true[0], sp_pred[0])
-                print(sp_true[-3], sp_pred[-3])
-                print(sp_true[-2], sp_pred[-2])
-                print(sp_true[-1], sp_pred[-1])
     # end WIP
     # use lbl_fn to define labels
     if lbl_fn is not None:
