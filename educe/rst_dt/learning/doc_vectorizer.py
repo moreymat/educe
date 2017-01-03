@@ -33,7 +33,7 @@ class DocumentLabelExtractor(object):
     Attributes
     ----------
     fixed_labelset_ : boolean
-        True if the labelset is fixed (TODO be more explicit).
+        True if the labelset has been fixed, i.e. `self` has been fit.
 
     labelset_ : dict
         A mapping of labels to indices.
@@ -461,15 +461,19 @@ class DocumentCountVectorizer(object):
 
         return vocabulary, vocab_df
 
-    def _limit_vocabulary(self, vocabulary, vocab_df,
-                          high=None, low=None, limit=None):
+    def _limit_features(self, vocab_df, vocabulary, high=None, low=None,
+                        limit=None):
         """Remove too rare or too common features.
 
         Prune features that are non zero in more samples than high or less
-        documents than low, restrict the vocabulary to at most the limit most
-        frequent.
+        documents than low, modifying the vocabulary and restricting it to
+        (TODO at most the limit most frequent).
 
-        Returns the set of removed features.
+        This does not prune samples with zero features.
+
+        This is essentially a reimplementation of the one in
+        sklearn.feature_extraction.text.CountVectorizer, except vocab_df
+        is computed differently.
         """
         if high is None and low is None and limit is None:
             return set()
@@ -496,16 +500,14 @@ class DocumentCountVectorizer(object):
             new_indices.append(new_idx)
             prev_idx = new_idx
         # removed features
-        removed_feats = set()
         vocab_items = vocabulary.items()
         for feat, old_index in vocab_items:
             if mask[old_index]:
                 vocabulary[feat] = new_indices[old_index]
             else:
                 del vocabulary[feat]
-                removed_feats.add(feat)
 
-        return vocabulary, removed_feats
+        return vocabulary
 
     def decode(self, doc):
         """Decode the input into a DocumentPlus.
@@ -569,11 +571,10 @@ class DocumentCountVectorizer(object):
                 raise ValueError(
                     'max_df corresponds to < documents than min_df')
             # limit features with df
-            vocabulary, rm_feats = self._limit_vocabulary(vocabulary,
-                                                          vocab_df,
-                                                          high=max_doc_count,
-                                                          low=min_doc_count,
-                                                          limit=max_features)
+            vocabulary = self._limit_features(vocab_df, vocabulary,
+                                              high=max_doc_count,
+                                              low=min_doc_count,
+                                              limit=max_features)
             self.vocabulary_ = vocabulary
         # time
         t1 = time.time()
@@ -585,7 +586,7 @@ class DocumentCountVectorizer(object):
         """Learn the vocabulary dictionary and generate a feature matrix per document.
         """
         self.fit(raw_documents, y=y)
-        return self.transform(raw_documents)        
+        return self.transform(raw_documents)
 
     def transform(self, raw_documents):
         """Transform each document to a feature matrix.
