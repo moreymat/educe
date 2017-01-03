@@ -475,11 +475,13 @@ class DocumentPlus(object):
 
         Parameters
         ----------
-        du_pairs: [(DU, DU)]
+        du_pairs : [(DU, DU)]
             List of DU pairs.
-        lbl_type: one of {'rel', 'rel+nuc'}
+
+        lbl_type : one of {'rel', 'rel+nuc'}
             Type of label.
-        ordered: boolean, defaults to True
+
+        ordered : boolean, defaults to True
             If True, du_pairs are considered ordered, otherwise the
             label of either (edu1, edu2) or (edu2, edu1) is returned (if
             not None).
