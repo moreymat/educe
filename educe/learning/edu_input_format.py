@@ -196,23 +196,20 @@ def dump_labels(labelset, f):
         _dump_labels(labelset, f)
 
 
-def dump_all(X, y, f, class_mapping, doc, instance_generator):
+def dump_all(X, y, f, doc, instance_generator):
     """Dump a whole dataset: features (in svmlight) and EDU pairs.
 
     Parameters
     ----------
-    X: iterable of int arrays
-
+    X : iterable of int arrays
         TODO
-    y: iterable of int
+    y : iterable of int
         TODO
-    f: TODO
+    f : TODO
         Output features file path
-    class_mapping: dict(string, int)
-        Mapping from label to int
-    doc: DocumentPlus
+    doc : DocumentPlus
         Document
-    instance_generator: function from DocumentPlus to iterable of pairs
+    instance_generator : function from DocumentPlus to iterable of pairs
         Function that generates an iterable of pairs from a
         DocumentPlus.
     """

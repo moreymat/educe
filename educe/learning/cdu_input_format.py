@@ -4,17 +4,14 @@ This format is WIP.
 """
 
 from __future__ import absolute_import, print_function
-import codecs
 import csv
 
-import six
-
-from .edu_input_format import labels_comment
 from .svmlight_format import dump_svmlight_file
 
 # pylint: disable=invalid-name
 # a lot of the names here are chosen deliberately to
 # go with sklearn convention
+
 
 # EDUs
 def _dump_cdu_input_file(doc_cdus, f):
@@ -58,8 +55,7 @@ def dump_cdu_pairings_file(epairs, f):
         _dump_cdu_pairings_file(epairs, f)
 
 
-def dump_all_cdus(X, y, f, class_mapping, doc, doc_cdus,
-                  instance_generator):
+def dump_all_cdus(X, y, f, doc, doc_cdus, instance_generator):
     """Dump instances from/to CDUs: features (in svmlight) and DU pairs.
 
     Parameters
@@ -70,8 +66,6 @@ def dump_all_cdus(X, y, f, class_mapping, doc, doc_cdus,
         TODO
     f: TODO
         Output features file path
-    class_mapping: dict(string, int)
-        Mapping from label to int
     doc: DocumentPlus
         Document
     doc_cdus: iterable of iterable of CDUs

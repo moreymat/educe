@@ -11,7 +11,7 @@ class KeyGroupVectorizer(object):
     """Transforms lists of KeyGroups to sparse vectors.
     """
     def __init__(self):
-        self.vocabulary_ = None
+        self.vocabulary_ = None  # FIXME should be set in fit()
 
     def _count_vocab(self, vectors, fixed_vocab):
         """Create sparse feature matrix and vocabulary
