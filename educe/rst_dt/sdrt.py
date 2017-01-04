@@ -13,16 +13,25 @@ converts the `CDU` into a Glozz-friendly form
 """
 
 import educe.rst_dt.parse as rst
-import educe.annotation   as anno
+import educe.annotation as anno
 from educe import glozz
 
-import itertools
 from nltk import Tree
 
+
 class CDU:
-    """
+    """Complex Discourse Unit.
+
     A CDU contains one or more discourse units, and tracks relation
     instances between its members. Both CDU and EDU are discourse units.
+
+    Attributes
+    ----------
+    members : TODO
+        Member units (EDUs and CDUs).
+
+    rel_insts : TODO
+        Relation instances between members.
     """
 
     def __init__(self, members, rel_insts):
@@ -30,19 +39,33 @@ class CDU:
         rel_insts refers to any relation instances between immediate
         members of this CDU
         """
-        self.members   = members
+        self.members = members
         self.rel_insts = rel_insts
 
+
 class RelInst:
-    """
-    Relation instance (educe.annotation calls these 'Relation's which is
-    really more in keeping with how Glozz class them, but properly speaking
-    relation instance is a better name)
+    """Relation instance.
+
+    educe.annotation calls these 'Relation's which is really more in
+    keeping with how Glozz class them, but properly speaking relation
+    instance is a better name.
+
+    Attributes
+    ----------
+    source : TODO
+        TODO
+
+    target : TODO
+        TODO
+
+    type : TODO
+        TODO
     """
     def __init__(self, source, target, type):
         self.source = source
         self.target = target
-        self.type   = type
+        self.type = type
+
 
 def debug_du_to_tree(m):
     """
@@ -55,9 +78,10 @@ def debug_du_to_tree(m):
     elif isinstance(m, CDU):
         rtypes = set([r.type for r in m.rel_insts])
         rtype_str = list(rtypes)[0] if len(rtypes) == 1 else str(rtypes)
-        return Tree(rtype_str, [debug_du_to_tree(m) for m in m.members])
+        return Tree(rtype_str, [debug_du_to_tree(x) for x in m.members])
     else:
-        raise Exception("Don't know how to deal with non CDU/EDU")
+        raise ValueError("Don't know how to deal with non CDU/EDU")
+
 
 def rst_to_glozz_sdrt(rst_tree, annotator='ldc'):
     """
@@ -73,6 +97,8 @@ def rst_to_glozz_sdrt(rst_tree, annotator='ldc'):
     rels = []
     edus = []
     cdus = []
+
+    # recursive helper
     def walk(m):
         if isinstance(m, rst.EDU):
             edus.append(m)
@@ -81,7 +107,9 @@ def rst_to_glozz_sdrt(rst_tree, annotator='ldc'):
             cdus.append(m)
             for c in m.members:
                 walk(c)
-    walk(intermediary_du) # populate rels/edus/cdus
+    # end recursive helper
+
+    walk(intermediary_du)  # populate rels/edus/cdus
 
     orig_to_ctr = {}
     for ctr, x in enumerate(edus + rels + cdus, start=1):
@@ -91,53 +119,57 @@ def rst_to_glozz_sdrt(rst_tree, annotator='ldc'):
         return annotator + '_' + str(ctr)
 
     def mk_metadata(ctr):
-        return {'author':annotator, 'creation-date':str(ctr) }
+        return {
+            'author': annotator,
+            'creation-date': str(ctr)
+        }
 
     def mk_info(obj):
-        counter  = orig_to_ctr[x]
+        counter = orig_to_ctr[x]
         glozz_id = mk_id(counter)
         features = {}
         metadata = mk_metadata(counter)
-        return counter, glozz_id, metadata
+        return counter, glozz_id, features, metadata
 
-    glozz_units   = []
-    glozz_rels    = []
+    glozz_units = []
+    glozz_rels = []
     glozz_schemas = []
-    objects       = {}
+    objects = {}
 
     for x in edus:
-        counter, glozz_id, metadata = mk_info(x)
-        features           = {}
-        glozz_unit         = anno.Unit(glozz_id, x.span, "EDU", features, metadata)
-        objects[glozz_id]  = glozz_unit
+        counter, glozz_id, features, metadata = mk_info(x)
+        glozz_unit = anno.Unit(glozz_id, x.span, "EDU", features, metadata)
+        objects[glozz_id] = glozz_unit
         glozz_units.append(glozz_unit)
 
     for x in rels:
-        counter, glozz_id, metadata = mk_info(x)
-        features  = {}
-        rspan     = anno.RelSpan(mk_id(orig_to_ctr[x.source]),
-                                 mk_id(orig_to_ctr[x.target]))
+        counter, glozz_id, features, metadata = mk_info(x)
+        rspan = anno.RelSpan(mk_id(orig_to_ctr[x.source]),
+                             mk_id(orig_to_ctr[x.target]))
         glozz_rel = anno.Relation(glozz_id, rspan, x.type, features, metadata)
         objects[glozz_id] = glozz_rel
         glozz_rels.append(glozz_rel)
 
     for x in cdus:
-        counter, glozz_id, metadata = mk_info(x)
-        features  = {}
-        c_units   = set(mk_id(orig_to_ctr[m]) for m in x.members if isinstance(m,rst.EDU))
-        c_schema  = set(mk_id(orig_to_ctr[m]) for m in x.members if isinstance(m,CDU))
-        c_rels    = set([])
+        counter, glozz_id, features, metadata = mk_info(x)
+        c_units = set(mk_id(orig_to_ctr[m]) for m in x.members
+                      if isinstance(m, rst.EDU))
+        c_schema = set(mk_id(orig_to_ctr[m]) for m in x.members
+                       if isinstance(m, CDU))
+        c_rels = set([])
         glozz_schema = anno.Schema(glozz_id, c_units, c_rels, c_schema,
                                    "CDU",
                                    features, metadata)
         objects[glozz_id] = glozz_schema
         glozz_schemas.append(glozz_schema)
 
-    for x in glozz_rels + glozz_schemas: # set internal pointers
+    for x in glozz_rels + glozz_schemas:  # set internal pointers
         x.fleshout(objects)
 
-    glozz_doc = glozz.GlozzDocument(None, glozz_units, glozz_rels, glozz_schemas, rst_tree.text())
+    glozz_doc = glozz.GlozzDocument(None, glozz_units, glozz_rels,
+                                    glozz_schemas, rst_tree.text())
     return glozz_doc
+
 
 def rst_to_sdrt(tree):
     """
@@ -158,30 +190,33 @@ def rst_to_sdrt(tree):
       informal example, given `X(List:N1, List:N2, List:N3)`, we return a CDU
       containing `sdrt(N1) --List--> sdrt(N2) -- List --> sdrt(N3)`.
     """
-    if len(tree) == 1: # pre-terminal
+    if len(tree) == 1:  # pre-terminal
         edu = tree[0]
         if not isinstance(edu, rst.EDU):
-            raise Exception("Pre-terminal with non-EDU leaf: %s" % edu)
+            raise ValueError("Pre-terminal with non-EDU leaf: %s" % edu)
         return edu
     else:
         nuclei = [x for x in tree if x.label().is_nucleus()]
         satellites = [x for x in tree if x.label().is_satellite()]
         if len(nuclei) + len(satellites) != len(tree):
-            raise Exception("Nodes that are neither Nuclei nor Satellites\n%s" % tree)
+            raise ValueError(
+                "Nodes that are neither Nuclei nor Satellites\n%s" % tree)
 
         if len(nuclei) == 0:
-            raise Exception("No nucleus:\n%s" % tree)
-        elif len(nuclei) > 1: # multi-nuclear chain
+            raise ValueError("No nucleus:\n%s" % tree)
+        elif len(nuclei) > 1:  # multi-nuclear chain
             if satellites:
-                raise Exception("Multinuclear with satellites:\n%s" % tree)
-            c_nucs    = list(map(rst_to_sdrt, nuclei))
-            rtype     = nuclei[0].label().rel
-            rel_insts = set(RelInst(n1, n2, rtype) for n1,n2 in zip(c_nucs, c_nucs[1:]))
+                raise ValueError("Multinuclear with satellites:\n%s" % tree)
+            c_nucs = list(map(rst_to_sdrt, nuclei))
+            rtype = nuclei[0].label().rel
+            rel_insts = set(RelInst(n1, n2, rtype)
+                            for n1, n2 in zip(c_nucs, c_nucs[1:]))
             return CDU(c_nucs, rel_insts)
         else:
-            nuc       = nuclei[0]
-            c_nuc     = rst_to_sdrt(nuc)
-            c_sats    = list(map(rst_to_sdrt,satellites))
-            rel_insts = set(RelInst(c_nuc, cs, s.label().rel) for s,cs in zip(satellites, c_sats))
-            members   = [c_nuc] + c_sats
+            nuc = nuclei[0]
+            c_nuc = rst_to_sdrt(nuc)
+            c_sats = list(map(rst_to_sdrt, satellites))
+            rel_insts = set(RelInst(c_nuc, cs, s.label().rel)
+                            for s, cs in zip(satellites, c_sats))
+            members = [c_nuc] + c_sats
             return CDU(members, rel_insts)
