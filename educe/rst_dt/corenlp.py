@@ -14,11 +14,11 @@ import os.path
 
 import nltk.tree
 
-from educe.external.corenlp import (CoreNlpToken, CoreNlpDocument)
-from educe.external.coref import (Chain, Mention)
-from educe.external.parser import (ConstituencyTree, DependencyTree)
+from educe.external.corenlp import CoreNlpToken, CoreNlpDocument
+from educe.external.coref import Chain, Mention
+from educe.external.parser import ConstituencyTree, DependencyTree
 from educe.external.stanford_xml_reader import PreprocessingSource
-from educe.ptb.annotation import (transform_tree, strip_subcategory)
+from educe.ptb.annotation import transform_tree, strip_subcategory
 from educe.ptb.head_finder import find_lexical_heads
 
 
@@ -42,6 +42,42 @@ def _guess_corenlp_name(k):
 
     corenlp_out_file = bname + '.xml'
     return corenlp_out_file
+
+
+def mk_tok_local_id(sid):
+    """Generate a mapper from token id to integer indices.
+
+    The integer indices correspond to the position of tokens in the
+    sentence.
+
+    Parameters
+    ----------
+    sid : str
+        Sentence id
+
+    Returns
+    -------
+    tok_local_id : fun(str, int)
+        Function that extracts the (int) local id of a token.
+    """
+    return lambda x: int(x[len(sid) + 1:])
+
+
+def mk_tok_global_id(sid):
+    """Generate global ids for tokens.
+
+    Parameters
+    ----------
+    sid : string
+        Sentence id
+
+    Returns
+    -------
+    tok_global_id : fun(str, str)
+        Generator of global token ids: "{sid}-{lid}", with sid the
+        sentence id and lid the local id.
+    """
+    return lambda x: sid + '-' + str(x)
 
 
 def read_corenlp_result(doc, corenlp_doc):
@@ -90,7 +126,7 @@ def read_corenlp_result(doc, corenlp_doc):
         sid = sent['id']
         tokens_dict = educe_tokens[sid]
         # NEW extract local id to properly sort tokens
-        tok_local_id = lambda x: int(x[len(sid) + 1:])
+        tok_local_id = mk_tok_local_id(sid)
         sorted_tokens = [tokens_dict[x]
                          for x in sorted(tokens_dict, key=tok_local_id)]
         # ctree
@@ -121,13 +157,16 @@ def read_corenlp_result(doc, corenlp_doc):
         mentions = []
         for mntn in chain:
             sid = mntn['sentence']
-            # helper functions to extract local ids and generate global ids
-            local_id = lambda x: int(x[len(sid) + 1:])
-            global_id = lambda x: sid + '-' + str(x)
-            # retrieve tokens for this mention
-            start = local_id(mntn['start'])
-            end = local_id(mntn['end'])
-            tokens = [educe_tokens[sid][global_id(tok_idx)]
+            # retrieve all the educe tokens that support this mention ;
+            # FIXME we use helper functions to extract local then global ids
+            # for each token, which indicates `educe_tokens` might not have
+            # the right structure
+            tok_local_id = mk_tok_local_id(sid)
+            tok_global_id = mk_tok_global_id(sid)
+            #
+            start = tok_local_id(mntn['start'])
+            end = tok_local_id(mntn['end'])
+            tokens = [educe_tokens[sid][tok_global_id(tok_idx)]
                       for tok_idx in range(start, end)]
             head = educe_tokens[sid][mntn['head']]
             mentions.append(Mention(tokens, head,

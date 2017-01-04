@@ -253,7 +253,7 @@ class RSTTree(SearchableTree, Standoff):
     raw RST discourse treebank one.
     """
 
-    def __init__(self, node, children, origin=None):
+    def __init__(self, node, children, origin=None, verbose=False):
         """
         See `educe.rst_dt.parse` to build trees from strings
         """
@@ -274,12 +274,14 @@ class RSTTree(SearchableTree, Standoff):
                 # all children are nuclei: 1 multi-nuc relation
                 kid_rels = [kid.label().rel for kid in children]
                 if len(set(kid_rels)) > 1:
-                    err_msg = ('W: More than one label in multi-nuclear'
-                               ' relation {}'.format(children))
-                    # print(err_msg)
+                    if verbose:
+                        err_msg = ('W: More than one label in multi-nuclear'
+                                   ' relation {}'.format(children))
+                        print(err_msg)
             else:
+                # corner case, should not happen
                 err_msg = 'E: Unknown pattern in children'
-                # print(err_msg)
+                print(err_msg)
             # its head is the head of its leftmost nucleus child
             lnuc = children[kids_nuclei[0]]
             node.head = lnuc.label().head
@@ -363,9 +365,7 @@ class RSTTree(SearchableTree, Standoff):
         """Image representation in PDF.
         """
         import os
-        import base64
         import subprocess
-        import tempfile
         from nltk.internals import find_binary
         # generate PostScript using the drawing utils of NLTK
         root, ext = os.path.splitext(filename)
@@ -612,11 +612,7 @@ class SimpleRSTTree(SearchableTree, Standoff):
             node.nuclearity = nuc
             return RSTTree(node, tree, tree.origin)
         else:
-            left = tree[0]
-            right = tree[1]
             node = copy.copy(treenode(tree))
-            lnode = treenode(left)
-            rnode = treenode(right)
             # standard RST trees mark relations on the satellite
             # child (mononuclear relations) or on each nucleus
             # child (multinuclear relations)

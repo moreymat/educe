@@ -123,24 +123,38 @@ class ConstituencyTree(SearchableTree, Standoff):
 
     @classmethod
     def build(cls, tree, tokens):
-        """
-        Build an educe tree by combining an existing NLTK tree with
+        """Build an educe tree by combining an existing NLTK tree with
         some replacement leaves.
 
         The replacement leaves should correspond 1:1 to the leaves of the
         original tree (for example, they may contain features related to
-        those words
+        those words).
+
+        Parameters
+        ----------
+        tree : nltk.Tree
+            Original NLTK tree.
+        tokens : iterable
+            List of replacement leaves.
+
+        Returns
+        -------
+        ctree : ConstituencyTree
+            ConstituencyTree where the internal nodes have the same
+            labels as in the original NLTK tree and the leaves
+            correspond to the given list of tokens.
         """
         toks = deque(tokens)
 
         def step(t):
             """Recursive helper for tree building"""
             if not isinstance(t, nltk.tree.Tree):
-                if toks:
-                    return toks.popleft()
-                else:
+                # leaf
+                if not toks:
                     raise Exception('Must have same number of input tokens '
                                     'as leaves in the tree')
+                return toks.popleft()
+            # internal node, recurse to kids
             return cls(t.label(), [step(kid) for kid in t])
         return step(tree)
 

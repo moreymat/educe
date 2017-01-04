@@ -46,7 +46,7 @@ class CoreNlpToken(postag.Token):
 
     Attributes
     ----------
-    features: dict(string, string)
+    features : dict(string, string)
         Additional info found by corenlp about the token
         (eg. `x.features['lemma']`)
     """
