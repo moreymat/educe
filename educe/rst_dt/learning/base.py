@@ -190,7 +190,7 @@ class DocumentPlusPreprocessor(object):
         idxes_in_sent = doc.edu2idx_in_sent
         rev_idxes_in_sent = doc.edu2rev_idx_in_sent
 
-        idxes_in_para = doc.edu2idx_in_para
+        # idxes_in_para = doc.edu2idx_in_para
         rev_idxes_in_para = doc.edu2rev_idx_in_para
 
         # paragraphs

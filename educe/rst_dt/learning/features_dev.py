@@ -342,7 +342,7 @@ def extract_single_syntax(doc, du_info, para_info):
     if any(x is None for x in tree_idc):
         return
 
-    ptrees = [doc.tkd_trees[x] for x in tree_idc]
+    # ptrees = [doc.tkd_trees[x] for x in tree_idc]
     unique_ptrees = [doc.tkd_trees[x] for x, _
                      in itertools.groupby(tree_idc)]
     # pheads = doc.lex_heads[tree_idx]
