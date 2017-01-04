@@ -361,9 +361,9 @@ class DocumentCountVectorizer(object):
                                                feat_dict['pair']))
             # add suffix to single EDU features
             feat_dict['DU1'] = dict(re_emit(feat_dict['DU1'].items(),
-                                             '_DU1'))
+                                            '_DU1'))
             feat_dict['DU2'] = dict(re_emit(feat_dict['DU2'].items(),
-                                             '_DU2'))
+                                            '_DU2'))
             # split feat space
             if split_feat_space is not None:
                 # options are:

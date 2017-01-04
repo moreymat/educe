@@ -658,7 +658,7 @@ def merge_same_units(dtree):
     dtree_merged : RstDepTree?
         Dependency tree with merged EDUs instead of Same-Unit.
     """
-    raise NotImplemented('TODO implement merge_same_units')
+    raise NotImplementedError('TODO implement merge_same_units')
 
 # SIGDIAL 2001:
 # "In addition, three relations are used to impose structure on the tree:

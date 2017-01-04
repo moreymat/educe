@@ -240,8 +240,7 @@ def extract_dump_instances(docs, instance_generator, feature_set,
                     doc_name, instance_descr, fn_ext)
             out_file = os.path.join(out_dir, fn_out)
             # end TODO refactor
-            dump_all_cdus(X, y, out_file, labtor.labelset_, doc,
-                          cdus, instance_gen)
+            dump_all_cdus(X, y, out_file, doc, cdus, instance_gen)
     else:
         for doc, X, y in itertools.izip(docs, X_gen, y_gen):
             # dump EDUs and features in svmlight format
@@ -255,7 +254,7 @@ def extract_dump_instances(docs, instance_generator, feature_set,
                     doc_name, instance_descr, fn_ext)
             out_file = os.path.join(out_dir, fn_out)
             # end TODO refactor
-            dump_all(X, y, out_file, labtor.labelset_, doc, instance_gen)
+            dump_all(X, y, out_file, doc, instance_gen)
     # trace
     t1 = time.time()
     print('[{:.4f} s]'.format(t1 - t0))

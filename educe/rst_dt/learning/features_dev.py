@@ -5,7 +5,6 @@
 from __future__ import print_function
 
 from collections import Counter, defaultdict
-from functools import reduce
 import itertools
 import re
 
@@ -300,6 +299,7 @@ def extract_single_para(doc, du_info, para_info):
     if False:
         # WIP as of 2016-06-10
         paras = doc.paragraphs
+        para_idx = edu_info['para_idx']
         if paras is not None and para_idx is not None:
             # FIXME impute para_idx where it is missing, in particular
             # for fileX files ; this should be a function from sentence
@@ -369,7 +369,7 @@ def extract_single_syntax(doc, du_info, para_info):
         # variant, stripped from leading and trailing punctuations
         tokens_strip_punc = strip_punctuation(tokens)
         syn_nodes_nopunc.extend(syntactic_node_seq(ptree, tokens_strip_punc))
-        
+
     if syn_nodes:
         yield ('SYN_nodes',
                tuple(x.label() for x in syn_nodes))
@@ -612,7 +612,7 @@ def extract_pair_sent(doc, du_info1, du_info2, edu_info_bwn):
     sent_ids2 = [edu_info['sent_idx'] for edu_info in du_info2]
 
     # sentenceID
-    if not any (x is None for x in itertools.chain(sent_ids1, sent_ids2)):
+    if not any(x is None for x in itertools.chain(sent_ids1, sent_ids2)):
         # if the two DUs have at least one sentence in common, consider
         # they belong to the same sentence
         yield ('same_sentence',
@@ -823,7 +823,8 @@ def extract_pair_syntax(doc, du_info1, du_info2, edu_info_bwn):
                            tuple(x.label() for x in syn_nodes))
                 # variant: strip leading and trailing punctuations
                 bwn_tokens_strip_punc = strip_punctuation(bwn_tokens)
-                syn_nodes_strip = syntactic_node_seq(ptree, bwn_tokens_strip_punc)
+                syn_nodes_strip = syntactic_node_seq(
+                    ptree, bwn_tokens_strip_punc)
                 if syn_nodes_strip:
                     yield ('SYN_nodes_bwn_nopunc',
                            tuple(x.label() for x in syn_nodes_strip))

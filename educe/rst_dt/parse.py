@@ -159,8 +159,8 @@ def _postprocess(tree, start=0, edu_start=1):
         if tree.startswith("["):
             return _parse_edu(tree[1:-1], edu_start, start)
         else:
-            raise RSTTreeException("ERROR in rst tree format for leaf : ",
-                                   child)
+            raise RSTTreeException(
+                "ERROR in rst tree format for leaf : " + str(child))
 
 
 def _recompute_spans(tree, context):
@@ -260,8 +260,8 @@ def parse_lightweight_tree(tstr):
 
             match = _lw_type_re.match(treenode(subtree))
             if not match:
-                raise RSTTreeException("Missing nuclearity annotation in ",
-                                       subtree)
+                raise RSTTreeException(
+                    "Missing nuclearity annotation in " + str(subtree))
             nuclearity = _lw_nuc_map[match.group("nuc")]
             rel = match.group("rel") or "leaf"
             edu_span = (start.edu, posinfo.edu - 1)

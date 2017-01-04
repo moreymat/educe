@@ -13,7 +13,6 @@ import itertools
 import textwrap
 
 from educe import corpus, stac
-from educe.graph import *
 import educe.graph
 from pygraph.readwrite import dot
 import pydot
@@ -22,13 +21,15 @@ import pygraph.classes.digraph    as dgr
 from pygraph.algorithms import traversal
 from pygraph.algorithms import accessibility
 
+
 class Graph(educe.graph.Graph):
     def __init__(self):
-        return educe.graph.Graph.__init__(self)
+        educe.graph.Graph.__init__(self)
 
     @classmethod
     def from_doc(cls, corpus, doc_key):
         return super(Graph, cls).from_doc(corpus, doc_key)
+
 
 class DotGraph(educe.graph.DotGraph):
     """
