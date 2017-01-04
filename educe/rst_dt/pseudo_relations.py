@@ -162,7 +162,8 @@ def rewrite_pseudo_rels(doc_key, ctree):
                     if all(isinstance(rec_kid, nltk.tree.Tree)
                            for rec_kid in rec_nuc):
                         rec_nuc = [rec_kid for rec_kid in rec_nuc
-                                   if rec_kid.label().nuclearity == 'Nucleus'][0]
+                                   if (rec_kid.label().nuclearity
+                                       == 'Nucleus')][0]
                     else:
                         # pre-terminal
                         assert len(rec_nuc) == 1

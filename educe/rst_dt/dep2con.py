@@ -782,7 +782,7 @@ def deptree_to_rst_tree(dtree):
     for height in range(1, max(heights)):  # leave fake root out, see below
         nodes = govs_by_height[height]
         for gov in nodes:
-            max_rnk = max(ranked_deps[gov].keys())
+            # max_rnk = max(ranked_deps[gov].keys())
             for rnk, deps in sorted(ranked_deps[gov].items()):
                 # overwrite the nuc and lbl of the head node, using the
                 # dependencies of this rank
@@ -823,7 +823,7 @@ def deptree_to_rst_tree(dtree):
         and len(ranked_deps[gov][1]) == 1):
         # unique real root => use its projection as the root of the ctree
         unique_real_root = ranked_deps[gov][1][0]
-        proj = subtrees[unique_real_root].label()
+        # proj = subtrees[unique_real_root].label()
         proj_node.nuclearity = proj_nuc
         proj_node.rel = proj_lbl
         subtrees[0] = subtrees[unique_real_root]
@@ -832,7 +832,7 @@ def deptree_to_rst_tree(dtree):
         # 2016-09-14 disable support for >1 real root
         raise ValueError("Fragile: RSTTree from dtree with >1 real root")
         #
-        max_rnk = max(ranked_deps[gov].keys())
+        # max_rnk = max(ranked_deps[gov].keys())
         for rnk, deps in sorted(ranked_deps[gov].items()):
             # overwrite the nuc and lbl of the head node, using the
             # dependencies of this rank

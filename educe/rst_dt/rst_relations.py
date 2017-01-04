@@ -12,7 +12,14 @@ References
 
 from __future__ import absolute_import, print_function
 
-from collections import Counter
+import os
+
+import nltk.tree
+
+from educe.rst_dt.annotation import SimpleRSTTree
+from educe.rst_dt.corpus import Reader
+from educe.rst_dt.deptree import RstDepTree
+from educe.rst_dt.pseudo_relations import rewrite_pseudo_rels
 
 
 # Inventory of classes of rhetorical relations, from subsection 4.1 of
@@ -341,15 +348,6 @@ RST_RELS_COARSE = sorted(set(FINE_TO_COARSE.values()))
 
 
 # WIP
-from collections import Counter
-import itertools
-import os
-
-import nltk.tree
-
-from educe.rst_dt.annotation import SimpleRSTTree
-from educe.rst_dt.deptree import RstDepTree
-from educe.rst_dt.corpus import Reader
 # relative to the educe docs directory
 # was: DATA_DIR = '/home/muller/Ressources/'
 DATA_DIR = os.path.join(
@@ -369,8 +367,6 @@ rst_reader = Reader(rst_corpus_dir)
 rst_corpus = rst_reader.slurp(verbose=True)
 ctrees = [doc for doc_key, doc in sorted(rst_corpus.items())]
 
-from educe.rst_dt.pseudo_relations import rewrite_pseudo_rels
-
 for doc_key, ctree in sorted(rst_corpus.items()):
     rewrite_pseudo_rels(doc_key, ctree)
 
@@ -380,6 +376,7 @@ raise ValueError('WIP TextualOrganization and Topic-Shift')
 dtrees = [RstDepTree.from_simple_rst_tree(SimpleRSTTree.from_rst_tree(doc))
           for doc_key, doc in sorted(rst_corpus.items())]
 
+
 # get dependencies
 def get_dependencies(dtree):
     """Get dependency triplets from a dependency tree"""
@@ -387,6 +384,7 @@ def get_dependencies(dtree):
             for dep_idx, (gov_idx, lbl) in enumerate(
                     zip(dtree.heads[1:], dtree.labels[1:]),
                     start=1)]
+
 
 # examine Same-Unit relations: search for governors on the right
 def check_su_right_gov(dtree):
@@ -408,7 +406,7 @@ def check_su_right_gov(dtree):
             print('\t{}\t{}\t{}'.format(
                 gov_idx, dep_idx, dtree.labels[dep_idx]))
     return su_right_govs
-    
+
 
 # get same-unit pairs, from dtree or ctree
 def same_units_deps_from_dtree(dtree):
@@ -489,6 +487,7 @@ def same_units_deps_from_ctree(ctree):
 # it was used to connect in an RST-like manner the textual spans that
 # corresponded to the title, author, and textual body of each document in
 # the corpus."
+
 
 def same_units_adjacent(dtree):
     """Same-Units where the fragments are adjacent"""
@@ -577,7 +576,7 @@ def check_same_units_ctree(ctree):
                              if (isinstance(y, nltk.tree.Tree) and
                                  y.label().nuclearity == 'Nucleus')][0]
                 lmost_leaf = lmost_nuc.leaves()[0]
-            
+
             # * (recursively found) nucleus of the leftmost nucleus
             nuc_cand = x
             while True:
@@ -681,4 +680,3 @@ def merge_same_units(dtree):
 # 1. ENH knn classification on EDUs => try to associate a "semantic class" of event to each EDU, then look at the pair of cluster IDs to decide attachment or labels
 # 2. FIX STAC features
 # 3. ENH MLP
-

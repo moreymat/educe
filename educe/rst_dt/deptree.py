@@ -12,7 +12,7 @@ import itertools
 
 import numpy as np
 
-from .annotation import EDU, _binarize, NUC_N, NUC_S, NUC_R
+from .annotation import EDU, _binarize, NUC_N, NUC_S  # , NUC_R
 from ..internalutil import treenode
 
 
@@ -260,7 +260,7 @@ class RstDepTree(object):
         self.labels[_idx_root] = _lbl_root
         self.nucs[_idx_root] = DEFAULT_NUC
         # calculate rank (for a unique root, should always be 0)
-        sisters = [i for i, hd in  enumerate(self.heads)
+        sisters = [i for i, hd in enumerate(self.heads)
                    if hd == _idx_fake_root]
         rank = max(self.ranks[i] for i in sisters) + 1
         self.ranks[_idx_root] = rank
