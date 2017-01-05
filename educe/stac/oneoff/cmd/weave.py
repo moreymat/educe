@@ -72,7 +72,7 @@ def _weave_docs(renames, src_doc, tgt_doc, gen):
         b=tgt_text,
         autojunk=False)
     matches = matcher.get_matching_blocks()
-    
+
     try:  # DEBUG
         check_matches(tgt_doc, matches)  # non-DEBUG
     except educe.stac.oneoff.weave.WeaveException:

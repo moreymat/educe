@@ -359,15 +359,17 @@ def stretch_match(updates, src_doc, tgt_doc, doc_span_src, doc_span_tgt,
                               span_src.char_end + rpad)
                          for span_src, lpad, rpad
                          in zip(spans_src, lpad_src, rpad_src)]
-        src_equiv_stretch = [cand_src for span_src, ext_span_src, cand_src
-                             in zip(spans_src, ext_spans_src, cands_src)
-                             if ((txt_tgt ==
-                                  hollow_out_missing_turn_text(
-                                      src_doc, tgt_doc,
-                                      doc_span_src=span_src,
-                                      doc_span_tgt=span_tgt
-                                  ).replace('\t ', '').replace('\t', '').strip()) and
-                                 ext_span_src.encloses(shifted_span_tgt))]
+        src_equiv_stretch = [
+            cand_src for span_src, ext_span_src, cand_src
+            in zip(spans_src, ext_spans_src, cands_src)
+            if ((txt_tgt ==
+                 hollow_out_missing_turn_text(
+                     src_doc, tgt_doc,
+                     doc_span_src=span_src,
+                     doc_span_tgt=span_tgt
+                 ).replace('\t ', '').replace('\t', '').strip())
+                and ext_span_src.encloses(shifted_span_tgt))
+        ]
         # extend list of 1-1 exact matches with 1-1 stretch matches
         if src_equiv_stretch:
             src_equiv.extend(src_equiv_stretch)
@@ -390,8 +392,10 @@ def stretch_match(updates, src_doc, tgt_doc, doc_span_src, doc_span_tgt,
             src_equiv_seq = sorted(src_equiv_cands, key=lambda x: x.span)
             # if the sequence covers the targeted span
             if ((src_equiv_seq and
-                 src_equiv_seq[0].span.char_start == shifted_span_tgt.char_start and
-                 src_equiv_seq[-1].span.char_end == shifted_span_tgt.char_end)):
+                 (src_equiv_seq[0].span.char_start
+                  == shifted_span_tgt.char_start) and
+                 (src_equiv_seq[-1].span.char_end
+                  == shifted_span_tgt.char_end))):
                 # and has no gap or just whitespaces
                 gap_str = ''.join(
                     src_doc.text(span=Span(elt_cur.span.char_end,
@@ -779,8 +783,8 @@ def shift_dialogues(doc_src, doc_res, updates, gen):
         gturn_idc_end = np.array(
             [i - 1 for i in gturn_idc[1:]] + [len(turns_src) - 1])
         # ... and finally
-        gturn_src_tid_beg = turns_src_tid[gturn_idc_beg]
-        gturn_src_tid_end = turns_src_tid[gturn_idc_end]
+        # gturn_src_tid_beg = turns_src_tid[gturn_idc_beg]
+        # gturn_src_tid_end = turns_src_tid[gturn_idc_end]
 
         # 2. get the identifier of the first and last turn of each dialogue
         # in _res: these turns and those in between must end up in the same
@@ -867,8 +871,8 @@ def shift_dialogues(doc_src, doc_res, updates, gen):
                                  in zip(dlg2gturn_beg, dlg2gturn_end)))
         gturns_matched = set(gturns_matched)
         # each dialogue in doc_src is a game turn
-        dlgs_src =  sorted((x for x in doc_src.units if is_dialogue(x)),
-                           key=lambda x: x.span)
+        dlgs_src = sorted((x for x in doc_src.units if is_dialogue(x)),
+                          key=lambda x: x.span)
         # remove all source and target dialogues from updates
         for dlg_res in dlgs_res:
             if dlg_res in updates.abnormal_tgt_only:
