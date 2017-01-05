@@ -760,9 +760,9 @@ def load_corpus_as_dataframe_new(selection='train', binarize=False,
                                 'parent_para_len': (
                                     edu2para[parent_span[1] - 1] -
                                     edu2para[parent_span[0] - 1] + 1),
-                                # distance between the current paragraph and the
-                                # most remote paragraph covered by the parent
-                                # span, in paragraphs
+                                # distance between the current paragraph and
+                                # the most remote paragraph covered by the
+                                # parent span, in paragraphs
                                 'parent_para_dist': (
                                     max([(edu2para[parent_span[1] - 1] -
                                           para_idx),
@@ -868,29 +868,39 @@ def gather_leaky_stats():
     # new hypothesis: 75% of leaky sentences can be split so that their EDUs
     # + the neighboring sentences form complete spans
     if False:
-        print(leaky_sents[['parent_sent_len', 'parent_sent_dist']].describe(
-            percentiles=[.1, .2, .3, .4, .5, .6, .7, .8, .9]))
+        print(leaky_sents[['parent_sent_len', 'parent_sent_dist']]
+              .describe(percentiles=[.1, .2, .3, .4, .5, .6, .7, .8, .9]))
         print(leaky_sents[(leaky_sents['parent_sent_dist'] == 1)].describe())
         print(leaky_sents[(leaky_sents['parent_sent_dist'] == 1) &
                           (leaky_sents['parent_sent_len'] > 2)])
     if False:
         print(leaky_sents['parent_sent_len'].value_counts())
     # taxonomy of leaky sentences
-    print(complex_sents.groupby('leaky_type')['edu_len'].describe().unstack())
-    print(complex_sents.groupby('edu_len')['leaky_type'].value_counts(normalize=False).unstack())  # absolute value counts
-    print(complex_sents.groupby('edu_len')['leaky_type'].value_counts(normalize=True).unstack())  # normalized value counts
-
+    print(complex_sents.groupby('leaky_type')['edu_len']
+          .describe().unstack())
+    # absolute value counts
+    print(complex_sents.groupby('edu_len')['leaky_type']
+          .value_counts(normalize=False).unstack())
+    # normalized value counts
+    print(complex_sents.groupby('edu_len')['leaky_type']
+          .value_counts(normalize=True).unstack())
 
     # WIP straddling relations
     strad_rels_df = pd.DataFrame(strad_rels_rows)
     print()
     print(strad_rels_df['sent_id'].describe()['count'])
-    print(strad_rels_df.groupby(['kid_rels']).describe()['sent_id'].unstack().sort_values('count', ascending=False))
+    print(strad_rels_df.groupby(['kid_rels'])
+          .describe()['sent_id'].unstack()
+          .sort_values('count', ascending=False))
     # compare to distribution of intra/inter relations
     print()
-    print(rels_train[rels_train['edu_len'] > 1].groupby(['intra_sent', 'strad_sent'])['kid_rels'].value_counts(normalize=False))
+    print(rels_train[rels_train['edu_len'] > 1]
+          .groupby(['intra_sent', 'strad_sent'])['kid_rels']
+          .value_counts(normalize=False))
     print()
-    print(rels_train[rels_train['edu_len'] > 1].groupby(['intra_sent', 'strad_sent'])['kid_rels'].value_counts(normalize=True))
+    print(rels_train[rels_train['edu_len'] > 1]
+          .groupby(['intra_sent', 'strad_sent'])['kid_rels']
+          .value_counts(normalize=True))
     print()
     # mismatches between strad_rels and rels_train['strad_sent']
     # strad_rels has 2 duplicate entries for spans that straddle part
@@ -899,7 +909,8 @@ def gather_leaky_stats():
     nodes_rels_train = rels_train[rels_train['strad_sent']]['node_id']
     nodes_strad_rels = strad_rels_df['node_id']
     print([rels_train[rels_train['node_id'] == node_id]
-           for node_id in Counter(nodes_strad_rels.values) - Counter(nodes_rels_train.values)])
+           for node_id in (Counter(nodes_strad_rels.values) -
+                           Counter(nodes_rels_train.values))])
 
     # PARAGRAPHS
     if False:
@@ -926,15 +937,17 @@ def gather_leaky_stats():
 
         # compare leaky with non-leaky complex paragraphss: EDU length
         print('EDU span length of leaky vs non-leaky complex paragraphs')
-        print(complex_paras.groupby('leaky')['edu_span_len'].describe().unstack())
+        print(complex_paras.groupby('leaky')['edu_span_len']
+              .describe().unstack())
         print()
 
-        # for each leaky paragraph, number of paragraphs included in the smallest
-        # RST node that fully covers the leaky paragraph
+        # for each leaky paragraph, number of paragraphs included in the
+        # smallest RST node that fully covers the leaky paragraph
         if False:
-            print(leaky_paras[['parent_span_para_len', 'parent_span_para_dist']].describe(
-                percentiles=[.1, .2, .3, .4, .5, .6, .7, .8, .9]))
-            print(leaky_paras[(leaky_paras['parent_span_para_dist'] == 1)].describe())
+            print(leaky_paras[['parent_span_para_len', 'parent_span_para_dist']]
+                  .describe(percentiles=[.1, .2, .3, .4, .5, .6, .7, .8, .9]))
+            print(leaky_paras[(leaky_paras['parent_span_para_dist'] == 1)]
+                  .describe())
             print(leaky_paras[(leaky_paras['parent_span_para_dist'] == 1) &
                               (leaky_paras['parent_span_para_len'] > 2)])
             #

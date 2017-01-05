@@ -19,6 +19,7 @@ from educe.rst_dt.annotation import EDU as RstEDU
 # a lot of the names here are chosen deliberately to
 # go with sklearn convention
 
+
 # EDUs
 def _dump_edu_input_file(doc, f):
     """Actually do dump"""
@@ -99,8 +100,8 @@ def _load_edu_input_file(f, edu_type):
         sent_idx = int(subgroup.split('_sent')[1])
         edu2sent.append(sent_idx)
     return {'filename': f.name,
-           'edus': edus,
-           'edu2sent': edu2sent}
+            'edus': edus,
+            'edu2sent': edu2sent}
 
 
 def load_edu_input_file(f, edu_type='rst-dt'):
