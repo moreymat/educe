@@ -105,7 +105,7 @@ import pygraph.classes.hypergraph as gr
 import pygraph.classes.digraph    as dgr
 from pygraph.algorithms import accessibility
 
-# pylint: disable=too-few-public-methods, star-args
+# pylint: disable=too-few-public-methods
 
 class DuplicateIdException(Exception):
     '''Condition that arises in inconsistent corpora'''

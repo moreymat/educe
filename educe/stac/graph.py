@@ -394,9 +394,7 @@ class DotGraph(educe.graph.DotGraph):
             attrs['fontcolor'] = anno.features['highlight']
         elif not self._edu_label(anno) or not stac.is_edu(anno):
             attrs['fontcolor'] = 'red'
-        # pylint: disable=star-args
         self.add_node(pydot.Node(node, **attrs))
-        # pylint: enable=star-args
 
     def _rel_label(self, anno):
         return anno.type

@@ -14,6 +14,10 @@ Educe-style representation for RST discourse treebank trees
 import copy
 import functools
 
+# nltk.draw for rendering in PS, PDF, PNG ; see RSTTree.to_ps()
+from nltk.draw.tree import tree_to_treesegment
+from nltk.draw.util import CanvasFrame
+
 from educe.annotation import Standoff, Span
 from educe.external.parser import SearchableTree
 from ..internalutil import treenode
@@ -342,8 +346,6 @@ class RSTTree(SearchableTree, Standoff):
 
         This function is used by `_repr_png_`.
         """
-        from nltk.draw.tree import tree_to_treesegment
-        from nltk.draw.util import CanvasFrame
         _canvas_frame = CanvasFrame()
         # WIP customization of visual appearance
         # NB: conda-provided python and tk cannot access most fonts on the

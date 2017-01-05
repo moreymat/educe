@@ -12,9 +12,10 @@ from collections import defaultdict, namedtuple
 import itertools
 
 from educe.annotation import Span
-from .annotation import SimpleRSTTree, Node, RSTTree
-from .deptree import RstDtException, NUC_N, NUC_S, NUC_R
-from ..internalutil import treenode
+from educe.internalutil import treenode
+from educe.rst_dt.annotation import (NUC_N, NUC_S, NUC_R, Node, RSTTree,
+                                     SimpleRSTTree)
+from educe.rst_dt.deptree import RstDtException
 
 
 class DummyNuclearityClassifier(object):

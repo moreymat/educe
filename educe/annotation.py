@@ -200,9 +200,14 @@ class RelSpan(object):
 
 # pylint: disable=no-self-use
 class Standoff(object):
-    """
-    A standoff object ultimately points to some piece of text.
+    """A standoff object ultimately points to some piece of text.
+
     The pointing is not necessarily direct though
+
+    Parameters
+    ----------
+    origin : educe.corpus.FileId
+        FileId of the document supporting this standoff.
     """
     def __init__(self, origin=None):
         self.origin = origin
@@ -212,7 +217,8 @@ class Standoff(object):
         Any annotations contained within this annotation.
 
         Must return None if is a terminal annotation (not the same
-        meaning as returning the empty list)
+        meaning as returning the empty list).
+        Non-terminal annotations must override this.
         """
         return None
 
@@ -223,12 +229,11 @@ class Standoff(object):
         terminals
         """
         my_members = self._members()
-        seen = seen or []
         if my_members is None:
             return [self]
-        else:
-            return chain.from_iterable([m._terminals(seen + my_members)
-                                        for m in my_members if m not in seen])
+        seen = seen or []
+        return chain.from_iterable([m._terminals(seen + my_members)
+                                    for m in my_members if m not in seen])
 
     def text_span(self):
         """

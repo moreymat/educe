@@ -185,7 +185,8 @@ class Relation(PdtbItem):
         elif len(args) == 2:
             self.arg1, self.arg2   = args
         else:
-            raise Exception('Was expecting either 2 or 4 arguments, but got: %d\n%s' % (len(xs), xs))
+            raise ValueError('Was expecting either 2 or 4 arguments, '
+                             'but got: %d\n%s' % (len(args), args))
 
     def _substr(self):
         return PdtbItem._substr(self)
@@ -335,8 +336,8 @@ def _annotate_debug(s):
 # ---------------------------------------------------------------------
 
 _DEBUG = 0 # turn this on to get line number hints
-_const  = lambda x: lambda _: x
-_unarg  = lambda f: lambda x: f(*x)
+_const = lambda x: lambda _: x
+_unarg = lambda f: lambda x: f(*x)
 
 def _cons(pair):
     head, tail = pair
@@ -350,7 +351,7 @@ def _mkstr_production(x):
 
 _any  = fp.some(_const(True))
 
-def _intersperse(d,xs):
+def _intersperse(d, xs):
     """
     a -> [a] -> [a]
     """

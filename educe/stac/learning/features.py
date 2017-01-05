@@ -31,11 +31,10 @@ from educe.stac.context import (enclosed,
                                 edus_in_span,
                                 turns_in_span)
 from educe.stac.corpus import (twin_key)
-from educe.learning.educe_csv_format import tune_for_csv
+from educe.learning.educe_csv_format import SparseDictReader, tune_for_csv
 from educe.learning.util import tuple_feature, underscore
 import educe.corpus
 import educe.glozz
-import educe.learning.educe_csv_format
 import educe.stac
 import educe.stac.lexicon.pdtb_markers as pdtb_markers
 import educe.stac.graph as stac_gr
@@ -1359,7 +1358,7 @@ def _read_inquirer_lexicon(args):
     """
     inq_txt_file = os.path.join(args.resources, INQUIRER_BASENAME)
     with open(inq_txt_file) as cin:
-        creader = educe_csv_format.SparseDictReader(cin, delimiter='\t')
+        creader = SparseDictReader(cin, delimiter='\t')
         words = defaultdict(list)
         for row in creader:
             for k in row:

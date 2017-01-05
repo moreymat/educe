@@ -148,12 +148,7 @@ def main_pairs(args):
     if not fp.exists(args.output):
         os.makedirs(args.output)
 
-    dump_all(X_gen,
-             y_gen,
-             out_file,
-             labtor.labelset_,
-             dialogues,
-             instance_generator)
+    dump_all(X_gen, y_gen, out_file, dialogues, instance_generator)
     # dump vocabulary
     vocab_file = out_file + '.vocab'
     dump_vocabulary(vzer.vocabulary_, vocab_file)
