@@ -54,8 +54,8 @@ class FileId:
         self.annotator = annotator
 
     def __str__(self):
-        return "%s [%s] %s %s" % (self.doc, self.subdoc, self.stage, self.annotator)
-
+        return "%s [%s] %s %s" % (self.doc, self.subdoc, self.stage,
+                                  self.annotator)
 
     def _tuple(self):
         """
@@ -94,6 +94,7 @@ class FileId:
         parts = [self.doc, self.subdoc, local_id]
         return "_".join(p for p in parts if p is not None)
 
+
 class Reader:
     """
     `Reader` provides little more than dictionaries from `FileId`
@@ -109,18 +110,18 @@ class Reader:
 
     .. code-block:: python
 
-        reader    = Reader(corpus_dir)
-        files     = reader.files()
-        subfiles  = { k:v in files.items() if k.annotator in [ 'Bob', 'Alice' ] }
-        corpus    = reader.slurp(subfiles)
+        reader = Reader(corpus_dir)
+        files = reader.files()
+        subfiles = {k: v in files.items() if k.annotator in ['Bob', 'Alice']}
+        corpus = reader.slurp(subfiles)
 
     Alternatively, having read in the entire corpus, you might be doing
     processing on various slices of it at a time
 
     .. code-block:: python
 
-        corpus    = reader.slurp()
-        subcorpus = { k:v in corpus.items() if k.doc == 'pilot14' }
+        corpus = reader.slurp()
+        subcorpus = {k: v in corpus.items() if k.doc == 'pilot14'}
 
     This is an abstract class; you should use the version from a
     data-set, eg. `educe.stac.Reader` instead
@@ -168,4 +169,3 @@ class Reader:
             { k: v for k, v in d.items() if pred(k) }
         """
         return dict([(k, v) for k, v in d.items() if pred(k)])
-
