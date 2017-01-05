@@ -1,7 +1,8 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-'''Function to "prettify" XML: courtesy of http://www.doughellmann.com/PyMOTW/xml/etree/ElementTree/create.html
+'''Function to "prettify" XML: courtesy of
+http://www.doughellmann.com/PyMOTW/xml/etree/ElementTree/create.html
 '''
 
 from __future__ import print_function

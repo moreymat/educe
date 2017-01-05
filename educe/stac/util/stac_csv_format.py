@@ -67,6 +67,7 @@ def mk_plain_csv_writer(outfile):
     """
     return csv.writer(outfile, dialect='stac')
 
+
 class Utf8DictWriter:
     """
     A CSV writer which will write rows to CSV file "f",
@@ -74,7 +75,7 @@ class Utf8DictWriter:
     """
 
     def __init__(self, f, headers, dialect=csv.excel, **kwds):
-        b_headers   = [ s.encode('utf-8') for s in headers ]
+        b_headers = [s.encode('utf-8') for s in headers]
         self.writer = csv.DictWriter(f, b_headers, dialect=dialect, **kwds)
 
     def writeheader(self):
@@ -86,11 +87,12 @@ class Utf8DictWriter:
                 return unicode(x).encode('utf-8')
             else:
                 return x
-        self.writer.writerow(dict([(b(k),b(v)) for k,v in row.items()]))
+        self.writer.writerow(dict([(b(k), b(v)) for k, v in row.items()]))
 
     def writerows(self, rows):
         for row in rows:
             self.writerow(row)
+
 
 class Utf8DictReader:
     """
@@ -108,7 +110,7 @@ class Utf8DictReader:
                 return x
 
         row = self.reader.next()
-        return dict([(u(k), u(v)) for k,v in row.items()])
+        return dict([(u(k), u(v)) for k, v in row.items()])
 
     def __iter__(self):
         return self
@@ -140,12 +142,14 @@ class SparseDictReader(csv.DictReader):
                 d[name] = col
         return d
 
+
 def mk_csv_writer(ofile):
     """
     Writes dictionaries.
     See `CSV_HEADERS` for details
     """
     return Utf8DictWriter(ofile, CSV_HEADERS, dialect='stac')
+
 
 def mk_csv_reader(infile):
     """

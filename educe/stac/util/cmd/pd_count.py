@@ -329,7 +329,6 @@ def create_dfs(corpus):
                 print('W: {}'.format(err_msg))
                 continue
 
-
     res = {anno_type: pd.DataFrame(data=row_list)
            for anno_type, row_list in rows.items()
            if row_list}
@@ -506,7 +505,8 @@ def report_on_corpus(corpus):
         print()
 
         print('Relation length (in Turn-stars)')
-        rel_tdist = disc_rels.groupby('type')['tstar_dist'].describe().unstack()
+        rel_tdist = (disc_rels.groupby('type')['tstar_dist']
+                     .describe().unstack())
         print(rel_tdist.sort_values(by='count', ascending=False))
         print()
 
