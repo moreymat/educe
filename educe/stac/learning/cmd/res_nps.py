@@ -10,7 +10,6 @@ Extract 'resource NPs' from all EDUs in the documents
 
 from __future__ import print_function
 from collections import defaultdict, namedtuple
-from itertools import chain
 import csv
 import sys
 
@@ -130,10 +129,10 @@ def config_argparser(parser):
     add_corpus_filters(parser, fields=fields_without(["stage"]))
     parser.set_defaults(func=main)
 
+
 # ---------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------
-
 def _read_corpus_inputs(args):
     """
     Read and filter the part of the corpus we want features for

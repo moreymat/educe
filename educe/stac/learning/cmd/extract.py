@@ -31,8 +31,7 @@ import educe.util
 
 from ..doc_vectorizer import (DialogueActVectorizer,
                               LabelVectorizer)
-from ..features import (strip_cdus,
-                        mk_high_level_dialogues,
+from ..features import (mk_high_level_dialogues,
                         extract_pair_features,
                         extract_single_features)
 

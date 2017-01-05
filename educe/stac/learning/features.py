@@ -608,12 +608,12 @@ def speakers_first_turn_in_dialogue(_, edu):
 # ---------------------------------------------------------------------
 
 
-#pylint: disable=unused-argument
+# pylint: disable=unused-argument
 def feat_annotator(current, edu1, edu2):
     "annotator for the subdoc"
     anno = current.doc.origin.annotator
     return "none" if anno is None or anno is "" else anno
-#pylint: enable=unused-argument
+# pylint: enable=unused-argument
 
 
 @tuple_feature(underscore)  # decorator does the pairing boilerplate
@@ -631,7 +631,7 @@ def dialogue_act_pairs(current, _, edu):
 EduGap = namedtuple("EduGap", "sf_cache inner_edus turns_between")
 
 
-#pylint: disable=unused-argument
+# pylint: disable=unused-argument
 def num_edus_between(_current, gap, _edu1, _edu2):
     "number of intervening EDUs (0 if adjacent)"
     return len(gap.inner_edus)
@@ -672,7 +672,7 @@ def has_inner_question(current, gap, _edu1, _edu2):
     "if there is an intervening EDU that is a question"
     return any(gap.sf_cache[x]["is_question"]
                for x in gap.inner_edus)
-#pylint: enable=unused-argument
+# pylint: enable=unused-argument
 
 
 def same_speaker(current, _, edu1, edu2):
