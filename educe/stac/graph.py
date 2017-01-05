@@ -16,7 +16,7 @@ import textwrap
 import pydot
 
 from educe.annotation import Annotation, Relation, RelSpan
-from .. import stac, annotation
+from .. import stac
 import educe.graph
 import educe.stac.annotation as stac_anno
 

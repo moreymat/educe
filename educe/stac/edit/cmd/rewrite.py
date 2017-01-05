@@ -8,10 +8,8 @@ Read and write back without changing anything else; potentially reformats XML
 
 import copy
 
-from educe.stac.util.args import\
-    add_usual_input_args,\
-    read_corpus,\
-    get_output_dir, announce_output_dir
+from educe.stac.util.args import (add_usual_input_args, read_corpus,
+                                  get_output_dir, announce_output_dir)
 from educe.stac.util.output import save_document
 from educe.stac.context import sorted_first_widest
 
@@ -36,7 +34,7 @@ def _diff_friendly(annos):
     requested, but in order for that to work we have to to eliminate spurious
     diffs that would obscure the interesting bits.
     """
-    return sorted_first_widest(_sans_modified_by(x) for x in  annos)
+    return sorted_first_widest(_sans_modified_by(x) for x in annos)
 
 # ---------------------------------------------------------------------
 # command and args
