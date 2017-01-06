@@ -4,22 +4,18 @@
 
 from __future__ import print_function
 
-import itertools
 import os
 
 import numpy as np
 
 from nltk.corpus.reader import BracketParseCorpusReader
 
-from educe.external.postag import generic_token_spans
 from educe.external.stanford_xml_reader import PreprocessingSource
-# from educe.rst_dt.corpus import RstDtParser
-from educe.rst_dt.corenlp import CoreNlpParser, read_corenlp_result
-from educe.ptb.annotation import is_empty_category
+from educe.rst_dt.corenlp import read_corenlp_result
 from educe.rst_dt.corpus import Reader
 from educe.rst_dt.deptree import RstDepTree
 from educe.rst_dt.document_plus import DocumentPlus
-from educe.rst_dt.ptb import PtbParser, _mk_token, _tweak_token
+from educe.rst_dt.ptb import PtbParser
 
 
 DATA_DIR = 'data'
