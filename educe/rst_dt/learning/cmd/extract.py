@@ -139,28 +139,37 @@ def extract_dump_instances(docs, instance_generator, feature_set,
 
     Parameters
     ----------
-    docs: list of DocumentPlus
+    docs : list of DocumentPlus
         Documents
-    instance_generator: (string, function)
+
+    instance_generator : (string, function)
         Instance generator: the first element is a string descriptor of
         the instance generator, the second is the instance generator
         itself: a function from DocumentPlus to list of EDU pairs.
-    vocabulary: filepath
+
+    vocabulary : filepath
         Path to vocabulary
-    split_feat_space: string
+
+    split_feat_space : string
         Splitter for feature space
-    labels: filepath?
+
+    labels : filepath?
         Path to labelset?
-    live: TODO
+
+    live : TODO
         TODO
-    ordered_pairs: boolean
+
+    ordered_pairs : boolean
         If True, DU pairs (instances) are ordered pairs, i.e.
         (src, tgt) <> (tgt, src).
-    output: TODO
+
+    output : string
+        Path to the output directory, e.g. 'TMP/data'.
+
+    corpus : TODO
         TODO
-    corpus: TODO
-        TODO
-    doc_cdus: list of list of CDUs, optional
+
+    doc_cdus : list of list of CDUs, optional
         List of CDUs for each document. WIP
     """
     # get instance generator and its descriptor
@@ -199,10 +208,13 @@ def extract_dump_instances(docs, instance_generator, feature_set,
                                    min_df=min_df,
                                    vocabulary=vocab,
                                    split_feat_space=split_feat_space)
+    # pylint: disable=invalid-name
+    # X, y follow the naming convention in sklearn
     if vocabulary is not None:
         X_gen = vzer.transform(docs)
     else:
         X_gen = vzer.fit_transform(docs)
+    # pylint: enable=invalid-name
 
     # extract class label for each instance
     if live:

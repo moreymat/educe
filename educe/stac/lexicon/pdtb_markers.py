@@ -141,13 +141,13 @@ def read_lexicon(filename):
 
     Parameters
     ----------
-    filename: string
-        Path to the lexicon
+    filename : string
+        Path to the lexicon.
 
     Returns
     -------
-    relations: dict(string, frozenset(Marker))
-        Relations and their signalling discourse markers
+    relations : dict(string, frozenset(Marker))
+        Relations and their signalling discourse markers.
     """
     rel2markers = defaultdict(list)
     # compute the inverse mapping; marker2rels -> rel2markers

@@ -131,7 +131,7 @@ def main_pairs(args):
                        COORDINATING_RELATIONS)
 
     # pylint: disable=invalid-name
-    # scikit-convention
+    # X, y follow the naming convention in sklearn
     feats = extract_pair_features(inputs, stage)
     vzer = KeyGroupVectorizer()
     if args.parsing or args.vocabulary:

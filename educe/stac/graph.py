@@ -148,26 +148,29 @@ class Graph(educe.graph.Graph):
         return g2
 
     def strip_cdus(self, sloppy=False, mode='head'):
-        """ Delete all CDUs in this graph.
-            Links involving a CDU will point to/from the elements
-            of this CDU.
-            Non-head modes may add new edges to the graph.
+        """Delete all CDUs in this graph.
 
-            Parameters
-            ----------
-            sloppy: boolean, default=False
-                See `cdu_head`.
+        Links involving a CDU will point to/from the elements
+        of this CDU.
+        If the mode is not `head`, new edges may be added to the graph.
 
-            mode: string, default='head'
-                Strategy for replacing edges involving CDUs.
-                `head` will relocate the edge on the recursive head of the
-                CDU (see `recursive_cdu_heads`).
-                `broadcast` will distribute the edge over all EDUs belonging
-                to the CDU. A copy of the edge will be created for each of
-                them. If the edge's source and target are both distributed,
-                a new copy will be created for each combination of EDUs.
-                `custom` (or any other string) will distribute or relocate on
-                the head depending on the relation label.
+        Note: this mutates `self.doc` (an `educe.glozz.GlozzDocument`).
+
+        Parameters
+        ----------
+        sloppy : boolean, default=False
+            See `cdu_head`.
+
+        mode : string, default='head'
+            Strategy for replacing edges involving CDUs.
+            `head` will relocate the edge on the recursive head of the
+            CDU (see `recursive_cdu_heads`).
+            `broadcast` will distribute the edge over all EDUs belonging
+            to the CDU. A copy of the edge will be created for each of
+            them. If the edge's source and target are both distributed,
+            a new copy will be created for each combination of EDUs.
+            `custom` (or any other string) will distribute or relocate on
+            the head depending on the relation label.
         """
 
         # Set of labels for which the source node should be distributed
