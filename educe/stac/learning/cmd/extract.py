@@ -29,11 +29,10 @@ import educe.glozz
 import educe.stac
 import educe.util
 
-from ..doc_vectorizer import (DialogueActVectorizer,
-                              LabelVectorizer)
-from ..features import (mk_high_level_dialogues,
-                        extract_pair_features,
-                        extract_single_features)
+from ..doc_vectorizer import (DialogueActVectorizer, LabelVectorizer,
+                              mk_high_level_dialogues,
+                              extract_pair_features,
+                              extract_single_features)
 
 NAME = 'extract'
 

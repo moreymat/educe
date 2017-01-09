@@ -16,17 +16,16 @@ import sys
 from educe.stac import postag, corenlp
 from educe.stac.annotation import is_edu
 from educe.stac.learning import features
-from educe.util import\
-     add_corpus_filters, fields_without, mk_is_interesting,\
-     concat, concat_l
+from educe.util import (add_corpus_filters, fields_without, mk_is_interesting,
+                        concat, concat_l)
 import educe.corpus
 import educe.glozz
 import educe.learning.keys
 import educe.stac
 
-from ..features import\
-    mk_env, get_players, enclosed_trees, is_nplike,\
-    FeatureInput
+from ..features import enclosed_trees, is_nplike
+from educe.stac.learning.doc_vectorizer import (mk_env, get_players,
+                                                FeatureInput)
 
 
 NAME = 'resource-nps'
