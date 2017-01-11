@@ -17,7 +17,11 @@ from educe.learning.keygroup_vectorizer import (KeyGroupVectorizer)
 from educe.stac.annotation import (DIALOGUE_ACTS,
                                    SUBORDINATING_RELATIONS,
                                    COORDINATING_RELATIONS)
-from educe.stac.learning import features
+from educe.stac.learning.doc_vectorizer import (
+    DialogueActVectorizer, LabelVectorizer, mk_high_level_dialogues,
+    extract_pair_features, extract_single_features, read_corpus_inputs)
+
+
 import educe.corpus
 from educe.learning.edu_input_format import (dump_all,
                                              labels_comment,
@@ -29,10 +33,6 @@ import educe.glozz
 import educe.stac
 import educe.util
 
-from ..doc_vectorizer import (DialogueActVectorizer, LabelVectorizer,
-                              mk_high_level_dialogues,
-                              extract_pair_features,
-                              extract_single_features)
 
 NAME = 'extract'
 
@@ -82,7 +82,7 @@ def config_argparser(parser):
 
 def main_single(args):
     """Extract feature vectors for single EDUs in the corpus."""
-    inputs = features.read_corpus_inputs(args)
+    inputs = read_corpus_inputs(args)
     stage = 'unannotated' if args.parsing else 'units'
     dialogues = list(mk_high_level_dialogues(inputs, stage))
     # these paths should go away once we switch to a proper dumper
@@ -118,7 +118,7 @@ def main_single(args):
 
 def main_pairs(args):
     """Extract feature vectors for pairs of EDUs in the corpus."""
-    inputs = features.read_corpus_inputs(args)
+    inputs = read_corpus_inputs(args)
     stage = 'units' if args.parsing else 'discourse'
     dialogues = list(mk_high_level_dialogues(inputs, stage))
     # these paths should go away once we switch to a proper dumper

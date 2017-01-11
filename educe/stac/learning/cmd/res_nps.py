@@ -15,7 +15,9 @@ import sys
 
 from educe.stac import postag, corenlp
 from educe.stac.annotation import is_edu
-from educe.stac.learning import features
+from educe.stac.learning.doc_vectorizer import (mk_env, get_players,
+                                                FeatureInput, LexWrapper)
+from educe.stac.learning.features import enclosed_trees, is_nplike
 from educe.util import (add_corpus_filters, fields_without, mk_is_interesting,
                         concat, concat_l)
 import educe.corpus
@@ -23,14 +25,10 @@ import educe.glozz
 import educe.learning.keys
 import educe.stac
 
-from ..features import enclosed_trees, is_nplike
-from educe.stac.learning.doc_vectorizer import (mk_env, get_players,
-                                                FeatureInput)
-
 
 NAME = 'resource-nps'
 
-LEXICON = features.LexWrapper('domain', 'stac_domain.txt', True)
+LEXICON = LexWrapper('domain', 'stac_domain.txt', True)
 
 
 def nplike_trees(current, edu):
