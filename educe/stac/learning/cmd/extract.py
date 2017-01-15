@@ -10,6 +10,7 @@ Extract features to CSV files
 
 from __future__ import print_function
 from os import path as fp
+import itertools
 import os
 import sys
 
@@ -85,9 +86,6 @@ def main_single(args):
     inputs = read_corpus_inputs(args)
     stage = 'unannotated' if args.parsing else 'units'
     dialogues = list(mk_high_level_dialogues(inputs, stage))
-    # these paths should go away once we switch to a proper dumper
-    out_file = fp.join(args.output,
-                       fp.basename(args.corpus) + '.dialogue-acts.sparse')
     instance_generator = lambda x: x.edus[1:]  # drop fake root
 
     # pylint: disable=invalid-name
@@ -100,19 +98,37 @@ def main_single(args):
     labtor = DialogueActVectorizer(instance_generator, DIALOGUE_ACTS)
     y_gen = labtor.transform(dialogues)
 
-    if not fp.exists(args.output):
-        os.makedirs(args.output)
+    # create directory structure: {output}/{corpus}/
+    outdir = args.output
+    corpus_name = fp.basename(args.corpus)
+    outdir_corpus = fp.join(outdir, corpus_name)
+    if not fp.exists(outdir_corpus):
+        os.makedirs(outdir_corpus)
 
     # list dialogue acts
     comment = labels_comment(labtor.labelset_)
 
     # dump: EDUs, pairings, vectorized pairings with label
-    edu_input_file = out_file + '.edu_input'
-    dump_edu_input_file(dialogues, edu_input_file)
-    dump_svmlight_file(X_gen, y_gen, out_file, comment=comment)
+    # WIP switch to a document (here dialogue) centric generation of data
+    for dia, X, y in itertools.izip(dialogues, X_gen, y_gen):
+        dia_id = dia.grouping
+        print('dump dialogue', dia_id)
+        # these paths should go away once we switch to a proper dumper
+        feat_file = fp.join(outdir_corpus,
+                            '{dia_id}.dialogue-acts.sparse'.format(
+                                dia_id=dia_id))
+        edu_input_file = '{feat_file}.edu_input'.format(feat_file=feat_file)
+        dump_edu_input_file(dia, edu_input_file)
+        dump_svmlight_file(X, y, feat_file, comment=comment)
+    # end WIP
 
     # dump vocabulary
-    vocab_file = out_file + '.vocab'
+    # WIP 2017-01-11 we might need to insert ".{instance_descr}",
+    # with e.g. instance_descr='edus', before ".sparse", so as to match
+    # the naming scheme currently used for RST
+    vocab_file = fp.join(outdir,
+                         '{corpus_name}.dialogue-acts.sparse.vocab'.format(
+                             corpus_name=corpus_name))
     dump_vocabulary(vzer.vocabulary_, vocab_file)
 
 
@@ -121,9 +137,6 @@ def main_pairs(args):
     inputs = read_corpus_inputs(args)
     stage = 'units' if args.parsing else 'discourse'
     dialogues = list(mk_high_level_dialogues(inputs, stage))
-    # these paths should go away once we switch to a proper dumper
-    out_file = fp.join(args.output,
-                       fp.basename(args.corpus) + '.relations.sparse')
     instance_generator = lambda x: x.edu_pairs()
 
     labels = frozenset(SUBORDINATING_RELATIONS +
@@ -143,12 +156,27 @@ def main_pairs(args):
                              zero=args.parsing)
     y_gen = labtor.transform(dialogues)
 
-    if not fp.exists(args.output):
-        os.makedirs(args.output)
+    # create directory structure
+    outdir = args.output
+    corpus_name = fp.basename(args.corpus)
+    outdir_corpus = fp.join(outdir, corpus_name)
+    if not fp.exists(outdir_corpus):
+        os.makedirs(outdir_corpus)
 
-    dump_all(X_gen, y_gen, out_file, dialogues, instance_generator)
+    # WIP switch to a document (here dialogue) centric generation of data
+    for dia, X, y in itertools.izip(dialogues, X_gen, y_gen):
+        dia_id = dia.grouping
+        # these paths should go away once we switch to a proper dumper
+        out_file = fp.join(outdir_corpus,
+                           '{dia_id}.relations.sparse'.format(
+                               dia_id=dia_id))
+        dump_all(X, y, out_file, dia, instance_generator)
+    # end WIP
+
     # dump vocabulary
-    vocab_file = out_file + '.vocab'
+    vocab_file = fp.join(outdir,
+                         '{corpus_name}.relations.sparse.vocab'.format(
+                             corpus_name=corpus_name))
     dump_vocabulary(vzer.vocabulary_, vocab_file)
 
 
@@ -162,4 +190,5 @@ def main(args):
     elif args.single:
         main_single(args)
     else:
-        main_pairs(args)
+        # main_pairs(args)  # DEBUG commented
+        pass  # DEBUG

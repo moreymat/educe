@@ -49,23 +49,48 @@ class DialogueActVectorizer(object):
         """Learn the label encoder and return a vector of labels
 
         There is one label per instance extracted from raw_documents.
+
+        Parameters
+        ----------
+        raw_documents : list of `educe.stac.fusion.Dialogue`
+            List of dialogues.
+
+        Yields
+        ------
+        inst_lbls : list of int
+            (Integer) label for each instance of the next document.
         """
         # run through documents to generate y
         for doc in raw_documents:
+            inst_lbls = []
             for edu in self.instance_generator(doc):
                 label = clean_dialogue_act(edu.dialogue_act() or UNK)
-                yield self.labelset_[label]
+                inst_lbls.append(self.labelset_[label])
+            yield inst_lbls
 
 
 class LabelVectorizer(object):
-    """Label extractor for the STAC corpus."""
+    """Label extractor for the STAC corpus.
+
+    Parameters
+    ----------
+    instance_generator : fun(doc, list(EDU, EDU))
+        Function to enumerate the instances from a doc.
+
+    labels : set(string)
+        Labelset
+
+    zero : boolean, defaults to False
+        If True, emit zero for all instances.
+
+    Attributes
+    ----------
+    labelset_ : dict(string, int)
+        Map from labels to integers ; a few values are reserved:
+        {UNK: 0, ROOT: 1, UNRELATED: 2}.
+    """
 
     def __init__(self, instance_generator, labels, zero=False):
-        """
-        instance_generator to enumerate the instances from a doc
-
-        :type labels: set(string)
-        """
         self.instance_generator = instance_generator
         self.labelset_ = {l: i for i, l in enumerate(labels, start=3)}
         self.labelset_[UNK] = 0
@@ -77,13 +102,25 @@ class LabelVectorizer(object):
         """Learn the label encoder and return a vector of labels
 
         There is one label per instance extracted from raw_documents.
+
+        Parameters
+        ----------
+        raw_documents : list of ?
+            Raw documents.
+
+        Yields
+        ------
+        inst_lbls : list of int
+            (Integer) label for each instance of the next document.        
         """
         zlabel = UNK if self._zero else UNRELATED
         # run through documents to generate y
         for doc in raw_documents:
+            inst_lbls = []
             for pair in self.instance_generator(doc):
                 label = doc.relations.get(pair, zlabel)
-                yield self.labelset_[label]
+                inst_lbls.append(self.labelset_[label])
+            yield inst_lbls
 
 
 # moved from educe.stac.learning.features
@@ -352,7 +389,7 @@ def _mk_high_level_dialogues(current):
 
     Parameters
     ----------
-    current : DocumentPlus
+    current : educe.stac.fusion.DocumentPlus
         Bundled representation of a document.
 
     Returns
@@ -363,7 +400,7 @@ def _mk_high_level_dialogues(current):
     doc = current.doc  # this is a GlozzDocument
     # first pass: create the EDU objects
     edus = sorted([x for x in doc.units if educe.stac.is_edu(x)],
-                  key=lambda x: x.span)
+                  key=lambda y: y.span)
     edus_in_dialogues = defaultdict(list)
     for edu in edus:
         edus_in_dialogues[edu.dialogue].append(edu)
@@ -509,8 +546,9 @@ def read_corpus_inputs(args):
 
     Parameters
     ----------
-    args : ? (see return type of ArgParse.parse())
-        Arguments given to the arg parser.
+    args : Namespace
+        Arguments given to the arg parser, in the form of a Namespace
+        produced by `ArgumentParser.parse_args()`.
 
     Returns
     -------
@@ -575,30 +613,63 @@ def _extract_pair(env, edu1, edu2):
 
 
 def extract_pair_features(inputs, stage):
-    """
-    Extraction for all relevant pairs in a document
-    (generator)
+    """Generator of feature vectors, one per pair of EDUs, in each dialogue.
+
+    Parameters
+    ----------
+    inputs : FeatureInput
+        Global parameters for feature extraction.
+
+    stage : string, one of {'unannotated', 'units', 'discourse'}
+        Annotation stage.
+
+    Yields
+    ------
+    vecs : PairEduKeys
+        List of feature vectors for the EDUs in the next document (here,
+        STAC dialogue).
     """
     for env in mk_envs(inputs, stage):
         for dia in _mk_high_level_dialogues(env.current):
+            vecs = []
             for edu1, edu2 in dia.edu_pairs():
-                yield _extract_pair(env, edu1, edu2)
+                vec = _extract_pair(env, edu1, edu2)
+                vecs.append(vec)
+            yield vecs
 
 
 # ---------------------------------------------------------------------
 # extraction generators (single edu)
 # ---------------------------------------------------------------------
 def extract_single_features(inputs, stage):
-    """
-    Return a dictionary for each EDU
+    """Generator of feature vectors, one per EDU, in each subdoc.
+
+    Parameters
+    ----------
+    inputs : FeatureInput
+        Global parameters for feature extraction.
+
+    stage : string, one of {'unannotated', 'units', 'discourse'}
+        Annotation stage.
+
+    Yields
+    ------
+    vecs : SingleEduKeys
+        List of feature vectors for the EDUs in the next document (in
+        fact, STAC subdoc).
     """
     for env in mk_envs(inputs, stage):
         doc = env.current.doc
         # skip any documents which are not yet annotated
         if env.current.unitdoc is None:
             continue
-        edus = [unit for unit in doc.units if educe.stac.is_edu(unit)]
-        for edu in edus:
-            vec = SingleEduKeys(env.inputs)
-            vec.fill(env.current, edu)
-            yield vec
+        # 2016-01-12 generate one list per Dialogue, rather than one per
+        # subdoc
+        for dia in _mk_high_level_dialogues(env.current):
+            edus = dia.edus[1:]
+            vecs = []
+            for edu in edus:
+                vec = SingleEduKeys(env.inputs)
+                vec.fill(env.current, edu)
+                vecs.append(vec)
+            yield vecs

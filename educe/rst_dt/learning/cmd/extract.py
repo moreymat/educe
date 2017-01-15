@@ -188,7 +188,7 @@ def extract_dump_instances(docs, instance_generator, feature_set,
     vocab_file = os.path.join(output, fn_out + fn_ext + '.vocab')
     labels_file = os.path.join(output, fn_out + '.labels')
     # WIP 2016-08-29 output folder, will contain n files per doc
-    # ex: TRAINING/wsj_0601.out.all-pairs.sparse
+    # ex: TRAINING/wsj_0601.out.relations.all-pairs.sparse
     out_dir = os.path.join(output, os.path.basename(corpus))
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)

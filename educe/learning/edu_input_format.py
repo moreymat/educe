@@ -206,8 +206,8 @@ def dump_all(X, y, f, doc, instance_generator):
         TODO
     y : iterable of int
         TODO
-    f : TODO
-        Output features file path
+    f : string
+        Path to the output file of sparse features.
     doc : DocumentPlus
         Document
     instance_generator : function from DocumentPlus to iterable of pairs
