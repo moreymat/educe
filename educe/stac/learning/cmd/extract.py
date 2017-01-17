@@ -142,9 +142,11 @@ def main_pairs(args):
     labels = frozenset(SUBORDINATING_RELATIONS +
                        COORDINATING_RELATIONS)
 
+    print('checkpoint 1')  # DEBUG
     # pylint: disable=invalid-name
     # X, y follow the naming convention in sklearn
     feats = extract_pair_features(inputs, stage)
+    print('checkpoint 1bis')  # DEBUG
     vzer = KeyGroupVectorizer()
     if args.parsing or args.vocabulary:
         vzer.vocabulary_ = load_vocabulary(args.vocabulary)
@@ -154,8 +156,11 @@ def main_pairs(args):
     # pylint: enable=invalid-name
     labtor = LabelVectorizer(instance_generator, labels,
                              zero=args.parsing)
+    print('checkpoint 2')  # DEBUG
     y_gen = labtor.transform(dialogues)
-
+    y = list(y_gen)  # DEBUG   # DELETE ME !
+    print('checkpoint 3')  # DEBUG
+    raise ValueError('gnip')
     # create directory structure
     outdir = args.output
     corpus_name = fp.basename(args.corpus)
@@ -190,5 +195,4 @@ def main(args):
     elif args.single:
         main_single(args)
     else:
-        # main_pairs(args)  # DEBUG commented
-        pass  # DEBUG
+        main_pairs(args)

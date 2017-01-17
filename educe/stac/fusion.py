@@ -30,7 +30,7 @@ extraction.
 
 from __future__ import print_function
 import copy
-import itertools as itr
+import itertools
 
 from educe.annotation import (Span, Unit)
 from educe.stac.annotation import (is_edu, speaker, turn_id, twin_from)
@@ -43,26 +43,48 @@ ROOT = 'ROOT'
 class Dialogue(object):
     """STAC Dialogue
 
-    Note that input EDUs should be sorted by span
+    Note that input EDUs should be sorted by span.
+
+    Parameters
+    ----------
+    anno : educe.stac.annotation.Unit
+        Glozz annotation corresponding to the dialogue ; only its
+        identifier is stored, currently.
+
+    edus : list(educe.stac.annotation.Unit)
+        List of EDU annotations, sorted by their span.
+
+    relations : list(educe.stac.annotation.Relation
+        List of relations between EDUs from the dialogue.
+
+    
     """
     def __init__(self, anno, edus, relations):
-        self.edus = [FakeRootEDU] + edus
         self.grouping = anno.identifier()
+        self.edus = [FakeRootEDU] + edus
+        self.relations = relations
         # we start from 1 because 0 is for the fake root
         self.edu2sent = {i: e.subgrouping()
                          for i, e in enumerate(edus, start=1)}
-        self.relations = relations
 
     def edu_pairs(self):
-        """Return all EDU pairs within this dialogue.
+        """Generate all EDU pairs within this dialogue.
 
-        NB: this is a generator
+        This includes pairs whose source is the left padding (fake root)
+        EDU.
+
+        Yields
+        ------
+        (source, target) : tuple(educe.stac.annotation.Unit)
+            Next candidate edge, as a pair of EDUs (source, target).
         """
         i_edus = list(enumerate(self.edus))
         _, fakeroot = i_edus[0]
         i_edus = i_edus[1:]  # drop left padding EDU
         for _, edu in i_edus:
             yield (fakeroot, edu)
+        # generate all pairs of (real) EDUs
+        real_pairs = []  # DEBUG
         for num1, edu1 in i_edus:
             def is_before(numedu2):
                 'true if we have seen the EDU already'
@@ -70,9 +92,19 @@ class Dialogue(object):
                 num2 = numedu2[0]
                 return num2 <= num1
                 # pylint: enable=cell-var-from-loop
-            for _, edu2 in itr.dropwhile(is_before, i_edus):
+            for _, edu2 in itertools.dropwhile(is_before, i_edus):
                 yield (edu1, edu2)
                 yield (edu2, edu1)
+                # DEBUG
+                real_pairs.append((edu1, edu2))
+                real_pairs.append((edu2, edu1))
+                # end DEBUG
+        # DEBUG compare list of EDU pairs from the above loop with a
+        # one-liner
+        real_pairs_itr = sorted(itertools.permutations(self.edus[1:]))
+        assert real_pairs_itr != sorted(real_pairs)
+        raise ValueError("woooop")
+        # end DEBUG
 
 
 # pylint: disable=too-many-instance-attributes

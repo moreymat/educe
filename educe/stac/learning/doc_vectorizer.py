@@ -111,7 +111,7 @@ class LabelVectorizer(object):
         Yields
         ------
         inst_lbls : list of int
-            (Integer) label for each instance of the next document.        
+            (Integer) label for each instance of the next document.
         """
         zlabel = UNK if self._zero else UNRELATED
         # run through documents to generate y
@@ -275,41 +275,6 @@ class FeatureCache(dict):
 # ---------------------------------------------------------------------
 # stuff (?)
 # ---------------------------------------------------------------------
-def _get_unit_key(inputs, key):
-    """
-    Given the key for what is presumably a discourse level or
-    unannotated document, return the key for its unit-level
-    equivalent.
-    """
-    if key.annotator is None:
-        twins = [k for k in inputs.corpus if
-                 k.doc == key.doc and
-                 k.subdoc == key.subdoc and
-                 k.stage == 'units']
-        return twins[0] if twins else None
-    else:
-        twin = copy.copy(key)
-        twin.stage = 'units'
-        return twin if twin in inputs.corpus else None
-
-
-def mk_env(inputs, people, key):
-    """
-    Pre-process and bundle up a representation of the current document
-    """
-    doc = inputs.corpus[key]
-    unit_key = _get_unit_key(inputs, key)
-    current = DocumentPlus(key=key, doc=doc,
-                           unitdoc=(inputs.corpus[unit_key] if unit_key
-                                    else None),
-                           players=people[key.doc],
-                           parses=(inputs.parses[key] if inputs.parses
-                                   else None))
-
-    return DocEnv(inputs=inputs, current=current,
-                  sf_cache=FeatureCache(inputs, current))
-
-
 def players_for_doc(corpus, kdoc):
     """
     Return the set of speakers/addressees associated with a document.
@@ -419,9 +384,60 @@ def _mk_high_level_dialogues(current):
         yield Dialogue(dia, d_edus, d_relations)
 
 
-def mk_envs(inputs, stage):
+def _get_unit_key(inputs, key):
     """
-    Generate an environment for each document in the corpus
+    Given the key for what is presumably a discourse level or
+    unannotated document, return the key for its unit-level
+    equivalent.
+    """
+    if key.annotator is None:
+        twins = [k for k in inputs.corpus if
+                 k.doc == key.doc and
+                 k.subdoc == key.subdoc and
+                 k.stage == 'units']
+        return twins[0] if twins else None
+    else:
+        twin = copy.copy(key)
+        twin.stage = 'units'
+        return twin if twin in inputs.corpus else None
+
+
+def mk_env(inputs, people, key):
+    """Pre-process and bundle up a representation of the current doc.
+
+    Parameters
+    ----------
+    inputs : FeatureInput
+        Global information for feature extraction.
+
+    people : dict(str, set(str))
+        Set of people involved in the dialogue, for each game (map from
+        document name to set of players).
+
+    key : FileId
+        Document identifier.
+
+    Returns
+    -------
+    doc_env : DocEnv
+        Representation of the designated document, ready for feature
+        extraction.
+    """
+    doc = inputs.corpus[key]
+    unit_key = _get_unit_key(inputs, key)
+    current = DocumentPlus(key=key, doc=doc,
+                           unitdoc=(inputs.corpus[unit_key] if unit_key
+                                    else None),
+                           players=people[key.doc],
+                           parses=(inputs.parses[key] if inputs.parses
+                                   else None))
+
+    return DocEnv(inputs=inputs, current=current,
+                  sf_cache=FeatureCache(inputs, current))
+
+
+def mk_envs(inputs, stage):
+    """Generate an environment for each document in the corpus
     within the given stage.
 
     The environment pools together all the information we
@@ -435,10 +451,10 @@ def mk_envs(inputs, stage):
     stage : one of {'units', 'discourse', 'unannotated'}
         Annotation stage
 
-    Returns
+    Yields
     -------
-    envs : iterator of DocEnv
-        Environments for feature extraction, one per doc.
+    env : DocEnv
+        Next environment for feature extraction, one per doc.
     """
     people = get_players(inputs)
     for key in inputs.corpus:
@@ -448,9 +464,7 @@ def mk_envs(inputs, stage):
 
 
 def mk_high_level_dialogues(inputs, stage):
-    """
-    Generate all relevant EDU pairs for a document
-    (generator)
+    """Generate all relevant EDU pairs for each designated document.
 
     Parameters
     ----------
@@ -461,10 +475,10 @@ def mk_high_level_dialogues(inputs, stage):
     stage : string, one of {'units', 'discourse'}
         Stage of annotation
 
-    Returns
+    Yields
     -------
-    dias : iterator of `educe.stac.fusion.Dialogue`
-        Dialogues
+    dia : `educe.stac.fusion.Dialogue`
+        Next dialogue in the Dialogues
     """
     for env in mk_envs(inputs, stage):
         for dia in _mk_high_level_dialogues(env.current):
@@ -641,8 +655,8 @@ def extract_pair_features(inputs, stage):
 # ---------------------------------------------------------------------
 # extraction generators (single edu)
 # ---------------------------------------------------------------------
-def extract_single_features(inputs, stage):
-    """Generator of feature vectors, one per EDU, in each subdoc.
+def extract_single_features(inputs, stage, safety_check=True):
+    """Generator of feature vectors, one per EDU, in each dialogue.
 
     Parameters
     ----------
@@ -660,16 +674,28 @@ def extract_single_features(inputs, stage):
     """
     for env in mk_envs(inputs, stage):
         doc = env.current.doc
+        if safety_check:
+            # safety check: ensure all EDUs are processed
+            # compare EDUs collected initially from the document, with
+            # all EDUs processed during feature extraction
+            all_edus = sorted([x for x in doc.units if educe.stac.is_edu(x)],
+                              key=lambda y: y.span)
+        processed_edus = []
         # skip any documents which are not yet annotated
         if env.current.unitdoc is None:
             continue
         # 2016-01-12 generate one list per Dialogue, rather than one per
         # subdoc
         for dia in _mk_high_level_dialogues(env.current):
-            edus = dia.edus[1:]
+            edus = dia.edus[1:]  # dia.edus[0]: left padding (fake root) EDU
             vecs = []
             for edu in edus:
                 vec = SingleEduKeys(env.inputs)
                 vec.fill(env.current, edu)
                 vecs.append(vec)
+                processed_edus.append(edu)  # safety check
             yield vecs
+        if safety_check:
+            # safety check: final step
+            processed_edus = sorted(processed_edus, key=lambda y: y.span)
+            assert processed_edus == all_edus

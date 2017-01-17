@@ -5,6 +5,7 @@
 # lots of scikit-conventional names here
 
 from collections import defaultdict
+import sys
 
 import numpy as np
 
@@ -57,16 +58,19 @@ class KeyGroupVectorizer(object):
         doc_ptr = []
         doc_ptr.append(0)
 
+        print('fit vocab')  # DEBUG
         for vecs in vectors:
             for vec in vecs:
                 for feature, featval in vec.one_hot_values_gen():
                     try:
-                        feature_acc.append((vocabulary[feature], featval))
+                        feature_idx = vocabulary[feature]
+                        feature_acc.append((feature_idx, featval))
                     except KeyError:
                         # ignore unknown features if fixed vocab
                         continue
                 row_ptr.append(len(feature_acc))
             doc_ptr.append(row_ptr[-1])
+        print('vocab done')  # DEBUG
 
         if not fixed_vocab:
             vocabulary = dict(vocabulary)
@@ -82,8 +86,16 @@ class KeyGroupVectorizer(object):
                 # start a new doc matrix
                 X.append([])
                 doc_nxt += 1
+                print('doc ', str(i))  # DEBUG
             x = feature_acc[current_row:next_row]
             X[-1].append(x)
+        # DEBUG
+        n_edus = [len(y) for y in X]
+        print(len(vocabulary), sys.getsizeof(vocabulary))
+        print(len(X), sum(len(y) for y in X), sys.getsizeof(X))
+        print(sum(nb_edus * (nb_edus - 1) for nb_edus in n_edus))
+        raise ValueError('woopti')
+        # end DEBUG
         return vocabulary, X
 
     def fit_transform(self, vectors):
