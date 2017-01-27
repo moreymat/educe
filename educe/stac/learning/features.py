@@ -7,12 +7,10 @@ to this library
 """
 
 from __future__ import absolute_import, print_function
-from collections import defaultdict, namedtuple
+from collections import defaultdict, namedtuple, Sequence
 from functools import wraps
-from itertools import chain
-import collections
 import copy
-import itertools as itr
+import itertools
 import os
 import re
 import sys
@@ -31,11 +29,10 @@ from educe.stac.context import (enclosed,
                                 edus_in_span,
                                 turns_in_span)
 from educe.stac.corpus import (twin_key)
-from educe.learning.csv import tune_for_csv
+from educe.learning.educe_csv_format import SparseDictReader, tune_for_csv
 from educe.learning.util import tuple_feature, underscore
 import educe.corpus
 import educe.glozz
-import educe.learning.csv as educe_csv
 import educe.stac
 import educe.stac.lexicon.pdtb_markers as pdtb_markers
 import educe.stac.graph as stac_gr
@@ -154,7 +151,7 @@ def emoticons(tokens):
 
 def is_just_emoticon(tokens):
     "Return true if a sequence of tokens consists of a single emoticon"
-    if not isinstance(tokens, collections.Sequence):
+    if not isinstance(tokens, Sequence):
         raise TypeError("tokens must form a sequence")
     return bool(emoticons(tokens)) and len(tokens) == 1
 
@@ -239,7 +236,7 @@ def has_pdtb_markers(markers, tokens):
     Given a sequence of tagged tokens, return True
     if any of the given PDTB markers appears within the tokens
     """
-    if not isinstance(tokens, collections.Sequence):
+    if not isinstance(tokens, Sequence):
         raise TypeError("tokens must form a sequence")
     words = [t.word for t in tokens]
     return pdtb_markers.Marker.any_appears_in(markers, words)
@@ -304,7 +301,7 @@ def map_topdown(good, prunable, trees):
     """
     Do topdown search on all these trees, concatenate results.
     """
-    return list(chain.from_iterable(
+    return list(itertools.chain.from_iterable(
         tree.topdown(good, prunable)
         for tree in trees if isinstance(tree, SearchableTree)))
 
@@ -1278,7 +1275,7 @@ def _mk_high_level_dialogues(current):
     for dia in dialogues:
         d_edus = edus_in_dialogues[dia]
         d_relations = {}
-        for pair in itr.product([FakeRootEDU] + d_edus, d_edus):
+        for pair in itertools.product([FakeRootEDU] + d_edus, d_edus):
             rel = relations.get(_id_pair(pair))
             if rel is not None:
                 d_relations[pair] = rel
@@ -1359,7 +1356,7 @@ def _read_inquirer_lexicon(args):
     """
     inq_txt_file = os.path.join(args.resources, INQUIRER_BASENAME)
     with open(inq_txt_file) as cin:
-        creader = educe_csv.SparseDictReader(cin, delimiter='\t')
+        creader = SparseDictReader(cin, delimiter='\t')
         words = defaultdict(list)
         for row in creader:
             for k in row:
