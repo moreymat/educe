@@ -129,7 +129,7 @@ def display_power(res):
             rfc_power = (100 * avg_frontier_size) / nb_edus
             row.append(rfc_power)
         tres.append(row)
-    print(tabulate(tres, headers=col_names, floatfmt='.1f')+'\n')
+    print(tabulate(tres, headers=col_names, floatfmt='.1f') + '\n')
 
 
 def config_argparser(parser):
