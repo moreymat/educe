@@ -42,7 +42,15 @@ DEFAULT_RANK = 0
 
 
 class RstDepTree(object):
-    """RST dependency tree"""
+    """RST dependency tree
+
+    Attributes
+    ----------
+    edus : list of EDU
+        List of the EDUs of this document.
+    origin : Document?, optional
+        TODO
+	"""
 
     def __init__(self, edus=[], origin=None):
         # FIXME find a clean way to avoid generating a new left padding EDU

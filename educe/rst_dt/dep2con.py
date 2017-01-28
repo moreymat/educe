@@ -21,7 +21,7 @@ class DummyNuclearityClassifier(object):
 
     Parameters
     ----------
-    strategy: str
+    strategy : str
         Strategy to use to generate predictions.
 
         * "unamb_else_most_frequent": predicts multinuclear when the

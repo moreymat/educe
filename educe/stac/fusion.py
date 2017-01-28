@@ -1,9 +1,9 @@
-"""Somewhat higher level representation of STAC documents
-than the usual Glozz layer.
+"""Somewhat higher level representation of STAC documents than the usual
+Glozz layer.
 
 Note that this is a relatively recent addition to Educe.
-Up to the time of this writing (2015-03), we had two options
-for dealing with STAC:
+Up to the time of this writing (2015-03), we had two options for dealing
+with STAC:
 
     * manually manipulating glozz objects via educe.annotation
     * dealing with some high-level but not particularly helpful
@@ -19,18 +19,18 @@ A typical example might be to print a listing of
 This has always been a bit awkward when dealing with Glozz, because there
 are separate annotations in different Glozz documents, the dialogue
 acts in the 'units' stage; and the linked units in the discourse stage.
-Combining these streams has always involved a certain amount of manual lookup,
-which we hope to avoid with this fusion layer.
+Combining these streams has always involved a certain amount of manual
+lookup, which we hope to avoid with this fusion layer.
 
-At the time of this writing, this will have a bit of emphasis on
-feature-extraction
+At the time of this writing, this will have a bit of emphasis on feature
+extraction.
 """
 
 # pylint: disable=too-few-public-methods
 
 from __future__ import print_function
 import copy
-import itertools as itr
+import itertools
 
 from educe.annotation import (Span, Unit)
 from educe.stac.annotation import (is_edu, speaker, turn_id, twin_from)
@@ -43,26 +43,47 @@ ROOT = 'ROOT'
 class Dialogue(object):
     """STAC Dialogue
 
-    Note that input EDUs should be sorted by span
+    Note that input EDUs should be sorted by span.
+
+    Parameters
+    ----------
+    anno : educe.stac.annotation.Unit
+        Glozz annotation corresponding to the dialogue ; only its
+        identifier is stored, currently.
+
+    edus : list(educe.stac.annotation.Unit)
+        List of EDU annotations, sorted by their span.
+
+    relations : list(educe.stac.annotation.Relation
+        List of relations between EDUs from the dialogue.
+
     """
     def __init__(self, anno, edus, relations):
-        self.edus = [FakeRootEDU] + edus
         self.grouping = anno.identifier()
+        self.edus = [FakeRootEDU] + edus
+        self.relations = relations
         # we start from 1 because 0 is for the fake root
         self.edu2sent = {i: e.subgrouping()
                          for i, e in enumerate(edus, start=1)}
-        self.relations = relations
 
     def edu_pairs(self):
-        """Return all EDU pairs within this dialogue.
+        """Generate all EDU pairs within this dialogue.
 
-        NB: this is a generator
+        This includes pairs whose source is the left padding (fake root)
+        EDU.
+
+        Yields
+        ------
+        (source, target) : tuple(educe.stac.annotation.Unit)
+            Next candidate edge, as a pair of EDUs (source, target).
         """
         i_edus = list(enumerate(self.edus))
         _, fakeroot = i_edus[0]
         i_edus = i_edus[1:]  # drop left padding EDU
         for _, edu in i_edus:
             yield (fakeroot, edu)
+        # generate all pairs of (real) EDUs
+        # real_pairs = []  # DEBUG
         for num1, edu1 in i_edus:
             def is_before(numedu2):
                 'true if we have seen the EDU already'
@@ -70,9 +91,19 @@ class Dialogue(object):
                 num2 = numedu2[0]
                 return num2 <= num1
                 # pylint: enable=cell-var-from-loop
-            for _, edu2 in itr.dropwhile(is_before, i_edus):
+            for _, edu2 in itertools.dropwhile(is_before, i_edus):
                 yield (edu1, edu2)
                 yield (edu2, edu1)
+                # DEBUG
+                # real_pairs.append((edu1, edu2))
+                # real_pairs.append((edu2, edu1))
+                # end DEBUG
+        # DEBUG compare list of EDU pairs from the above loop with a
+        # one-liner
+        # real_pairs_itr = sorted(itertools.permutations(self.edus[1:]))
+        # assert real_pairs_itr != sorted(real_pairs)
+        # raise ValueError("woooop")
+        # end DEBUG
 
 
 # pylint: disable=too-many-instance-attributes
@@ -87,15 +118,13 @@ class EDU(Unit):
     It also tries to be usable as a drop-in substitute for both
     annotations and contexts
     """
-    def __init__(self, doc,
-                 discourse_anno,
-                 unit_anno):
+    def __init__(self, doc, discourse_anno, unit_anno):
         self._doc = doc
         self._anno = discourse_anno
         self._unit_anno = unit_anno
         unit_anno = unit_anno or discourse_anno
-        unit_type = unit_anno.type if is_edu(unit_anno)\
-            else discourse_anno.type
+        unit_type = (unit_anno.type if is_edu(unit_anno)
+                     else discourse_anno.type)
         super(EDU, self).__init__(discourse_anno.local_id(),
                                   discourse_anno.text_span(),
                                   unit_type,
@@ -214,31 +243,50 @@ FakeRootEDU = _FakeRootEDU()
 
 
 def fuse_edus(discourse_doc, unit_doc, postags):
-    """Return a copy of the discourse level doc, merging info
-    from both the discourse and units stage.
+    """Return a copy of the discourse level doc, merging info from both
+    the discourse and units stage.
 
     All EDUs will be converted to higher level EDUs.
 
     Notes
     -----
-    * The discourse stage is primary in that we work by going over what EDUs
-      we find in the discourse stage and trying to enhance them with
-      information we find on their units-level equivalents. Sometimes (rarely
-      but it happens) annotations can go out of synch.  EDUs missing on the
-      units stage will be silently ignored (we try to make do without them).
+    * The discourse stage is primary in that we work by going over what
+      EDUs we find in the discourse stage and trying to enhance them
+      with information we find on their units-level equivalents.
+      Sometimes (rarely but it happens) annotations can go out of synch.
+      EDUs missing on the units stage will be silently ignored (we try
+      to make do without them).
       EDUs that were introduced on the units stage but not percolated to
       discourse will also be ignored.
 
-    * We rely on annotation ids to match EDUs from both stages; it's up to you
-      to ensure that the annotations are really in synch.
+    * We rely on annotation ids to match EDUs from both stages; it's up
+      to you to ensure that the annotations are really in synch.
 
-    * This does not constitute a full merge of the documents. For a full merge,
-      you would have to bring over other annotations such as Resources,
-      `Preference`, `Anaphor`, `Several_resources`, taking care all the while
-      to ensure there are no timestamp clashes with pre-existing annotations
-      (it's unlikely but best be on the safe side if you ever find yourself
-      with automatically generated annotations, where all bets are off
-      time-stamp wise).
+    * This does not constitute a full merge of the documents. For a full
+      merge, you would have to bring over other annotations such as
+      Resources, `Preference`, `Anaphor`, `Several_resources`, taking
+      care all the while to ensure there are no timestamp clashes with
+      pre-existing annotations (it's unlikely but best be on the safe
+      side if you ever find yourself with automatically generated
+      annotations, where all bets are off time-stamp wise).
+
+    Parameters
+    ----------
+    discourse_doc : GlozzDocument
+        Document from the "discourse" stage.
+
+    unit_doc : GlozzDocument
+        Document from the "units" stage.
+
+    postags : list of Token
+        Sequence of educe tokens predicted by the POS tagger for this
+        document.
+
+    Returns
+    -------
+    doc : GlozzDocument
+        Deep copy of the discourse_doc with info from the units stage
+        merged in.
     """
     doc = copy.deepcopy(discourse_doc)
 
@@ -251,7 +299,7 @@ def fuse_edus(discourse_doc, unit_doc, postags):
         edu = EDU(doc, anno, unit_anno)
         replacements[anno] = edu
 
-    # second pass: rewrite doc so that annotations that corresponds
+    # second pass: rewrite doc so that annotations that correspond
     # to EDUs are replacement by their higher-level equivalents
     edus = []
     for anno in annos:
@@ -270,7 +318,7 @@ def fuse_edus(discourse_doc, unit_doc, postags):
                 schema.units.append(edu)
 
     # fourth pass: flesh out the EDUs with contextual info
-    # now the EDUs should be work as contexts too
+    # now the EDUs should work as contexts too
     contexts = Context.for_edus(doc, postags=postags)
     for edu in edus:
         edu.fleshout(contexts[edu])
