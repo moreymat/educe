@@ -17,7 +17,6 @@ Corpus management
 # the above. Give us a mapping from FileId to filepaths and we
 # do the rest.
 
-import sys
 
 class FileId:
     """
@@ -49,14 +48,14 @@ class FileId:
     :type annotator: string
     """
     def __init__(self, doc, subdoc, stage, annotator):
-       self.doc=doc
-       self.subdoc=subdoc
-       self.stage=stage
-       self.annotator=annotator
+        self.doc = doc
+        self.subdoc = subdoc
+        self.stage = stage
+        self.annotator = annotator
 
     def __str__(self):
-        return "%s [%s] %s %s" % (self.doc, self.subdoc, self.stage, self.annotator)
-
+        return "%s [%s] %s %s" % (self.doc, self.subdoc, self.stage,
+                                  self.annotator)
 
     def _tuple(self):
         """
@@ -95,13 +94,14 @@ class FileId:
         parts = [self.doc, self.subdoc, local_id]
         return "_".join(p for p in parts if p is not None)
 
+
 class Reader:
     """
     `Reader` provides little more than dictionaries from `FileId`
     to data.
 
     :param rootdir: the top directory of the corpus
-    :type  rootdir: string
+    :type rootdir: str
 
     A potentially useful pattern to apply here is to take a slice of
     these dictionaries for processing. For example, you might not want
@@ -110,24 +110,24 @@ class Reader:
 
     .. code-block:: python
 
-        reader    = Reader(corpus_dir)
-        files     = reader.files()
-        subfiles  = { k:v in files.items() if k.annotator in [ 'Bob', 'Alice' ] }
-        corpus    = reader.slurp(subfiles)
+        reader = Reader(corpus_dir)
+        files = reader.files()
+        subfiles = {k: v in files.items() if k.annotator in ['Bob', 'Alice']}
+        corpus = reader.slurp(subfiles)
 
     Alternatively, having read in the entire corpus, you might be doing
     processing on various slices of it at a time
 
     .. code-block:: python
 
-        corpus    = reader.slurp()
-        subcorpus = { k:v in corpus.items() if k.doc == 'pilot14' }
+        corpus = reader.slurp()
+        subcorpus = {k: v in corpus.items() if k.doc == 'pilot14'}
 
     This is an abstract class; you should use the version from a
     data-set, eg. `educe.stac.Reader` instead
     """
-    def __init__(self, dir):
-        self.rootdir=dir
+    def __init__(self, root):
+        self.rootdir = root
 
     def files(self):
         """
@@ -152,10 +152,8 @@ class Reader:
         :param verbose: print what we're reading to stderr
         :type  verbose: bool
         """
-        if cfiles is None:
-            subcorpus=self.files()
-        else:
-            subcorpus=cfiles
+        subcorpus = (cfiles if cfiles is not None
+                     else self.files())
         return self.slurp_subcorpus(subcorpus, verbose)
 
     def slurp_subcorpus(self, cfiles, verbose=False):
@@ -168,7 +166,6 @@ class Reader:
         """
         Convenience function equivalent to ::
 
-            { k:v for k,v in d.items() if pred(k) }
+            { k: v for k, v in d.items() if pred(k) }
         """
-        return dict([(k,v) for k,v in d.items() if pred(k)])
-
+        return dict([(k, v) for k, v in d.items() if pred(k)])
