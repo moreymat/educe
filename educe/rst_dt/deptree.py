@@ -12,13 +12,8 @@ import itertools
 
 import numpy as np
 
-from .annotation import EDU
+from .annotation import EDU, _binarize, NUC_N, NUC_S  # , NUC_R
 from ..internalutil import treenode
-
-
-NUC_N = "Nucleus"
-NUC_S = "Satellite"
-NUC_R = "Root"
 
 
 class RstDtException(Exception):
@@ -41,6 +36,46 @@ DEFAULT_NUC = NUC_N
 DEFAULT_RANK = 0
 
 
+# helper function for conversion from binary to nary relations
+def binary_to_nary(nary_enc, pairs):
+    """Retrieve nary relations from a set of binary relations.
+
+    Parameters
+    ----------
+    nary_enc: one of {"chain", "tree"}
+        Encoding from n-ary to binary relations.
+    pairs: iterable of pairs of identifier (ex: integer, string...)
+        Binary relations.
+
+    Return
+    ------
+    nary_rels: list of tuples of identifiers
+        Nary relations.
+    """
+    nary_rels = []
+    open_ends = []  # companion to nary_rels: open end
+    for gov_idx, dep_idx in pairs:
+        try:
+            # search for an existing fragmented EDU this same-unit
+            # could belong to
+            open_frag = open_ends.index(gov_idx)
+        except ValueError:
+            # start a new fragmented EDU
+            nary_rels.append([gov_idx, dep_idx])
+            if nary_enc == 'chain':
+                open_ends.append(dep_idx)
+            else:  # 'tree'
+                open_ends.append(gov_idx)
+        else:
+            # append dep_idx to an existing fragmented EDU
+            nary_rels[open_frag].append(dep_idx)
+            # NB: if "tree", no need to update the open end
+            if nary_enc == 'chain':
+                open_ends[open_frag] = dep_idx
+    nary_rels = [tuple(x) for x in nary_rels]
+    return nary_rels
+
+
 class RstDepTree(object):
     """RST dependency tree
 
@@ -50,9 +85,16 @@ class RstDepTree(object):
         List of the EDUs of this document.
     origin : Document?, optional
         TODO
-	"""
+    nary_enc : one of {'chain', 'tree'}, optional
+        Type of encoding used for n-ary relations: 'chain' or 'tree'.
+        This determines for example how fragmented EDUs are resolved.
+    """
 
-    def __init__(self, edus=[], origin=None):
+    def __init__(self, edus=[], origin=None, nary_enc='chain'):
+        # WIP 2016-07-20 nary_enc to resolve fragmented EDUs
+        if nary_enc not in ['chain', 'tree']:
+            raise ValueError("nary_enc must be in {'tree', 'chain'}")
+        self.nary_enc = nary_enc
         # FIXME find a clean way to avoid generating a new left padding EDU
         # here
         _lpad = EDU.left_padding()
@@ -177,17 +219,31 @@ class RstDepTree(object):
             # common rank
             self.ranks[_idx_dep] = rank
 
-    def get_dependencies(self):
+    def get_dependencies(self, lbl_type='rel'):
         """Get the list of dependencies in this dependency tree.
 
         Each dependency is a 3-uple (gov, dep, label),
         gov and dep being EDUs.
+
+        Parameters
+        ----------
+        lbl_type: one of {'rel', 'rel+nuc'} (TODO 'rel+nuc+rnk'?)
+            Type of the labels.
         """
+        if lbl_type not in ['rel', 'rel+nuc']:
+            raise ValueError("lbl_type needs to be one of {'rel', 'rel+nuc'}")
+
         edus = self.edus
 
         deps = self.edus[1:]
         gov_idxs = self.heads[1:]
-        labels = self.labels[1:]
+        if lbl_type == 'rel':
+            labels = self.labels[1:]
+        elif lbl_type == 'rel+nuc':
+            labels = list(zip(self.labels[1:],
+                              ['N' + nuc[0] for nuc in self.nucs[1:]]))
+        else:
+            raise NotImplementedError("WIP")
 
         result = [(edus[gov_idx], dep, lbl)
                   for gov_idx, dep, lbl
@@ -216,6 +272,26 @@ class RstDepTree(object):
                              if self.heads[i] == gov_idx)
         sorted_deps = [i for rk, i in ranked_deps]
         return sorted_deps
+
+    def fragmented_edus(self):
+        """Get the fragmented EDUs in this RST tree.
+
+        Fragmented EDUs are made of two or more EDUs linked by
+        "same-unit" relations.
+
+        Returns
+        -------
+        frag_edus: list of tuple of int
+            Each fragmented EDU is given as a tuple of the indices of
+            the fragments.
+        """
+        nary_enc = self.nary_enc
+        su_deps = [(gov_idx, dep_idx) for dep_idx, (gov_idx, lbl)
+                   in enumerate(zip(self.heads[1:], self.labels[1:]),
+                                start=1)
+                   if lbl.lower() == 'same-unit']
+        frag_edus = binary_to_nary(nary_enc, su_deps)
+        return frag_edus
 
     def real_roots_idx(self):
         """Get the list of the indices of the real roots"""
@@ -258,7 +334,9 @@ class RstDepTree(object):
     def from_simple_rst_tree(cls, rtree):
         """Converts a ̀SimpleRSTTree` to an `RstDepTree`"""
         edus = sorted(rtree.leaves(), key=lambda x: x.span.char_start)
-        dtree = cls(edus)
+        # building a SimpleRSTTree requires to binarize the original
+        # RSTTree first, so 'chain' is the only possibility
+        dtree = cls(edus, nary_enc='chain')
 
         def walk(tree):
             """
@@ -303,10 +381,19 @@ class RstDepTree(object):
         return dtree
 
     @classmethod
-    def from_rst_tree(cls, rtree):
-        """Converts an ̀RSTTree` to an `RstDepTree`"""
+    def from_rst_tree(cls, rtree, nary_enc='tree'):
+        """Converts an ̀RSTTree` to an `RstDepTree`.
+
+        Parameters
+        ----------
+        nary_enc : one of {'chain', 'tree'}
+            If 'chain', the given RSTTree is binarized first.
+        """
         edus = sorted(rtree.leaves(), key=lambda x: x.span.char_start)
-        dtree = cls(edus)
+        # if 'chain', binarize the tree first
+        if nary_enc == 'chain':
+            rtree = _binarize(rtree)
+        dtree = cls(edus, nary_enc=nary_enc)
 
         def walk(tree):
             """

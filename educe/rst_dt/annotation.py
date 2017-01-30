@@ -18,12 +18,20 @@ import os
 import subprocess
 import tempfile
 
+# nltk.draw for rendering in PS, PDF, PNG ; see RSTTree.to_ps()
+from nltk.draw.tree import tree_to_treesegment
+from nltk.draw.util import CanvasFrame
 from nltk.internals import find_binary
 
 from educe.annotation import Standoff, Span
 from educe.external.parser import SearchableTree
 from ..internalutil import treenode
 
+
+# nuclearities
+NUC_N = "Nucleus"
+NUC_S = "Satellite"
+NUC_R = "Root"
 
 # ghostscript parameters to generate images in different formats
 _GS_PARAMS = {
@@ -81,9 +89,7 @@ class EDU(Standoff):
     """
     _SUMMARY_LEN = 20
 
-    def __init__(self, num, span, text,
-                 context=None,
-                 origin=None):
+    def __init__(self, num, span, text, context=None, origin=None):
         super(EDU, self).__init__(origin)
 
         self.num = num
@@ -191,8 +197,7 @@ class Node(object):
     A node in an `RSTTree` or `SimpleRSTTree`.
     """
 
-    def __init__(self, nuclearity, edu_span, span, rel,
-                 context=None):
+    def __init__(self, nuclearity, edu_span, span, rel, context=None):
         self.nuclearity = nuclearity
         "one of Nucleus, Satellite, Root"
 
@@ -221,7 +226,7 @@ class Node(object):
     def __str__(self):
         return "%s %s %s" % (
             "%s-%s" % self.edu_span,
-            self.nuclearity[0],
+            self.nuclearity,
             self.rel)
 
     def __eq__(self, other):
@@ -241,13 +246,13 @@ class Node(object):
         can only either be nucleus/satellite or much more rarely,
         root.
         """
-        return self.nuclearity == 'Nucleus'
+        return self.nuclearity == NUC_N
 
     def is_satellite(self):
         """
         A node can either be a nucleus, a satellite, or a root node.
         """
-        return self.nuclearity == 'Satellite'
+        return self.nuclearity == NUC_S
 
 
 # pylint: disable=R0904, E1103
@@ -257,13 +262,39 @@ class RSTTree(SearchableTree, Standoff):
     raw RST discourse treebank one.
     """
 
-    def __init__(self, node, children,
-                 origin=None):
+    def __init__(self, node, children, origin=None, verbose=False):
         """
         See `educe.rst_dt.parse` to build trees from strings
         """
         SearchableTree.__init__(self, node, children)
         Standoff.__init__(self, origin)
+        # WIP 2016-11-10 store num of head in node
+        if len(children) == 1 and isinstance(children[0], EDU):
+            # pre-terminal: head is num of terminal (EDU)
+            node.head = children[0].num
+        else:
+            # internal node
+            kids_nuclei = [i for i, kid in enumerate(children)
+                           if kid.label().nuclearity == NUC_N]
+            if len(kids_nuclei) == 1:
+                # 1 nucleus, 1-n satellites: n mono-nuc relations
+                pass
+            elif len(kids_nuclei) == len(children):
+                # all children are nuclei: 1 multi-nuc relation
+                kid_rels = [kid.label().rel for kid in children]
+                if len(set(kid_rels)) > 1:
+                    if verbose:
+                        err_msg = ('W: More than one label in multi-nuclear'
+                                   ' relation {}'.format(children))
+                        print(err_msg)
+            else:
+                # corner case, should not happen
+                err_msg = 'E: Unknown pattern in children'
+                print(err_msg)
+            # its head is the head of its leftmost nucleus child
+            lnuc = children[kids_nuclei[0]]
+            node.head = lnuc.label().head
+        # end WIP head
 
     def set_origin(self, origin):
         """
@@ -317,8 +348,6 @@ class RSTTree(SearchableTree, Standoff):
 
         This function is used by `_repr_png_`.
         """
-        from nltk.draw.tree import tree_to_treesegment
-        from nltk.draw.util import CanvasFrame
         _canvas_frame = CanvasFrame()
         # WIP customization of visual appearance
         # NB: conda-provided python and tk cannot access most fonts on the
@@ -359,6 +388,38 @@ class RSTTree(SearchableTree, Standoff):
         """
         return treenode(self).edu_span
 
+    def get_spans(self, subtree_filter=None, exclude_root=False):
+        """Get the spans of a constituency tree.
+
+        Each span is described by a triplet (edu_span, nuclearity,
+        relation).
+
+        Parameters
+        ----------
+        subtree_filter: function, defaults to None
+            Function to filter all local trees.
+
+        exclude_root: boolean, defaults to False
+            If True, exclude the span of the root node. This cannot be
+            expressed with `subtree_filter` because the latter is limited
+            to properties local to each subtree in isolation. Or maybe I
+            just missed something.
+
+        Returns
+        -------
+        spans: list of tuple((int, int), str, str)
+            List of tuples, each describing a span with a tuple
+            ((edu_start, edu_end), nuclearity, relation).
+        """
+        tnodes = [x.label() for x in self.subtrees(filter=subtree_filter)
+                  if isinstance(x, RSTTree)]
+        if exclude_root:
+            tnodes = tnodes[1:]
+        # 2016-11-10 add a 4th element: head
+        spans = [(tn.edu_span, tn.nuclearity, tn.rel, tn.head)
+                 for tn in tnodes]
+        return spans
+
     def text(self):
         """
         Return the text corresponding to this RST subtree.
@@ -394,6 +455,14 @@ class SimpleRSTTree(SearchableTree, Standoff):
         """
         SearchableTree.__init__(self, node, children)
         Standoff.__init__(self, origin)
+        # WIP 2016-11-10 store num of head in node
+        if len(children) == 1 and isinstance(children[0], EDU):
+            node.head = children[0].num
+        else:
+            # head is head of the leftmost nucleus child
+            lnuc_idx = node.nuclearity.index('N')
+            node.head = children[lnuc_idx].label().head
+        # end WIP head
 
     def set_origin(self, origin):
         """
@@ -409,6 +478,38 @@ class SimpleRSTTree(SearchableTree, Standoff):
 
     def _members(self):
         return list(self)  # children
+
+    def get_spans(self, subtree_filter=None, exclude_root=False):
+        """Get the spans of a constituency tree.
+
+        Each span is described by a triplet (edu_span, nuclearity,
+        relation).
+
+        Parameters
+        ----------
+        subtree_filter: function, defaults to None
+            Function to filter all local trees.
+
+        exclude_root: boolean, defaults to False
+            If True, exclude the span of the root node. This cannot be
+            expressed with `subtree_filter` because the latter is limited
+            to properties local to each subtree in isolation. Or maybe I
+            just missed something.
+
+        Returns
+        -------
+        spans: list of tuple((int, int), str, str)
+            List of tuples, each describing a span with a tuple
+            ((edu_start, edu_end), nuclearity, relation).
+        """
+        tnodes = [x.label() for x in self.subtrees(filter=subtree_filter)
+                  if isinstance(x, SimpleRSTTree)]
+        if exclude_root:
+            tnodes = tnodes[1:]
+        # 2016-11-10 add a 4th element: head
+        spans = [(tn.edu_span, tn.nuclearity, tn.rel, tn.head)
+                 for tn in tnodes]
+        return spans
 
     @classmethod
     def from_rst_tree(cls, tree):
@@ -428,6 +529,7 @@ class SimpleRSTTree(SearchableTree, Standoff):
         if len(tree) == 1:
             node = copy.copy(treenode(tree))
             node.rel = "leaf"
+            node.nuclearity = "leaf"  # WIP
             return SimpleRSTTree(node, tree, tree.origin)
         else:
             left = tree[0]
@@ -436,6 +538,9 @@ class SimpleRSTTree(SearchableTree, Standoff):
             lnode = treenode(left)
             rnode = treenode(right)
             node.rel = rnode.rel if rnode.is_satellite() else lnode.rel
+            # WIP move nuclearity up too
+            node.nuclearity = ''.join(x.label().nuclearity[0] for x in tree)
+            # end WIP
             kids = [cls._from_binary_rst_tree(kid) for kid in tree]
             return SimpleRSTTree(node, kids, tree.origin)
 
@@ -479,7 +584,7 @@ class SimpleRSTTree(SearchableTree, Standoff):
             return SimpleRSTTree(node, kids, tree.origin)
 
     @classmethod
-    def to_binary_rst_tree(cls, tree, rel='ROOT'):
+    def to_binary_rst_tree(cls, tree, rel='---', nuc=NUC_R):
         """
         Build and return a binary `RSTTree` from a `SimpleRSTTree`.
 
@@ -490,45 +595,51 @@ class SimpleRSTTree(SearchableTree, Standoff):
 
         Parameters
         ----------
-        tree: SimpleRSTTree
+        tree : SimpleRSTTree
             SimpleRSTTree to convert
 
-        rel: string, optional
-            Relation that must decorate the root node of the output
+        rel : string, optional
+            Relation for the root node of the output
+
+        nuc : string, optional
+            Nuclearity for the root node of the output
 
         Returns
         -------
-        rtree: RSTTree
+        rtree : RSTTree
             The (binary) RSTTree that corresponds to the given
             SimpleRSTTree
         """
         if len(tree) == 1:
             node = copy.copy(treenode(tree))
             node.rel = rel
+            node.nuclearity = nuc
             return RSTTree(node, tree, tree.origin)
         else:
-            # left = tree[0]
-            # right = tree[1]
             node = copy.copy(treenode(tree))
-            # lnode = treenode(left)
-            # rnode = treenode(right)
             # standard RST trees mark relations on the satellite
             # child (mononuclear relations) or on each nucleus
             # child (multinuclear relations)
-            sat_idx = [i for i, kid in enumerate(tree)
-                       if treenode(kid).is_satellite()]
+            sat_idx = [i for i, nuc0 in enumerate(node.nuclearity)
+                       if nuc0 == NUC_S[0]]
             if sat_idx:
                 # mononuclear
-                kids = [(cls.to_binary_rst_tree(kid, rel=node.rel)
-                         if treenode(kid).is_satellite() else
-                         cls.to_binary_rst_tree(kid, rel='span'))
-                        for kid in tree]
+                kids = [
+                    cls.to_binary_rst_tree(
+                        kid,
+                        rel=(node.rel if node.nuclearity[i] == NUC_S[0]
+                             else 'span'),
+                        nuc=(NUC_S if node.nuclearity[i] == NUC_S[0]
+                             else NUC_N))
+                    for i, kid in enumerate(tree)
+                ]
             else:
                 # multinuclear
-                kids = [cls.to_binary_rst_tree(kid, rel=node.rel)
+                kids = [cls.to_binary_rst_tree(kid, rel=node.rel, nuc=NUC_N)
                         for kid in tree]
-            # update the rel in the current node
+            # update the rel and nuc in the current node
             node.rel = rel
+            node.nuclearity = nuc
             return RSTTree(node, kids, tree.origin)
 
 
@@ -546,7 +657,7 @@ def _chain_to_binary(rel, kids):
         rnode = treenode(right)
         edu_span = (lnode.edu_span[0], rnode.edu_span[1])
         span = lnode.span.merge(rnode.span)
-        newnode = Node('Nucleus', edu_span, span, rel)
+        newnode = Node(NUC_N, edu_span, span, rel)
         return RSTTree(newnode, [left, right], origin=left.origin)
     return functools.reduce(builder, kids[::-1])
 

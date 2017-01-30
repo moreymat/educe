@@ -5,9 +5,11 @@
 Corpus management (re-exported by educe.rst_dt)
 """
 
-from glob import glob
 import os
 import sys
+from glob import glob
+from os.path import dirname
+from os.path import join
 
 from nltk import Tree
 
@@ -17,7 +19,7 @@ from educe.rst_dt import parse
 import educe.util
 import educe.corpus
 from .document_plus import DocumentPlus
-from .annotation import SimpleRSTTree, _binarize
+from .annotation import SimpleRSTTree
 from .deptree import RstDepTree
 from .pseudo_relations import rewrite_pseudo_rels
 
@@ -116,7 +118,7 @@ class RstDtParser(object):
         If True, relation labels are converted to their coarse-grained
         equivalent.
 
-    nary_conv : string, optional
+    nary_enc : string, optional
         Conversion method from constituency to dependency tree, for
         n-ary spans, n > 2, whose kids are all nuclei:
         'tree' picks the leftmost nucleus as the head of all the others
@@ -141,7 +143,7 @@ class RstDtParser(object):
 
     def __init__(self, corpus_dir, args, coarse_rels=False,
                  fix_pseudo_rels=False,
-                 nary_conv='chain',
+                 nary_enc='chain',
                  nuc_in_label=False,
                  exclude_file_docs=False):
         self.reader = Reader(corpus_dir)
@@ -160,10 +162,10 @@ class RstDtParser(object):
         else:
             self.rel_conv = None
         # how to convert n-ary spans
-        self.nary_conv = nary_conv
-        if nary_conv not in ['chain', 'tree']:
+        self.nary_enc = nary_enc
+        if nary_enc not in ['chain', 'tree']:
             err_msg = 'Unknown conversion for n-ary spans: {}'
-            raise ValueError(err_msg.format(nary_conv))
+            raise ValueError(err_msg.format(nary_enc))
         # whether nuclearity should be part of the label
         self.nuc_in_label = nuc_in_label
 
@@ -216,14 +218,8 @@ class RstDtParser(object):
         # end TO DEPRECATE
 
         # convert to dep tree
-        # WIP
-        if self.nary_conv == 'chain':
-            # legacy mode, through SimpleRSTTree
-            # deptree = RstDepTree.from_simple_rst_tree(rsttree)
-            # modern mode, directly from a binarized RSTTree
-            deptree = RstDepTree.from_rst_tree(_binarize(orig_rsttree))
-        else:  # tree conversion
-            deptree = RstDepTree.from_rst_tree(orig_rsttree)
+        deptree = RstDepTree.from_rst_tree(orig_rsttree,
+                                           nary_enc=self.nary_enc)
         # end WIP
         doc.deptree = deptree
 
@@ -278,3 +274,22 @@ class RstRelationConverter(object):
                 # replace old rel with new rel
                 node.rel = conv_lbl(node.rel)
         return rst_tree
+
+    def convert_dtree(self, dtree):
+        """Change relation labels in an RstDepTree using the label mapping.
+
+        See attribute `self.convert_label`.
+
+        Parameters
+        ----------
+        dtree : RstDepTree
+            RST dtree
+
+        Returns
+        -------
+        dtree : RstDepTree
+            RST dtree with mapped labels.
+        """
+        conv_lbl = self.convert_label
+        dtree.labels[1:] = [conv_lbl(x) for x in dtree.labels[1:]]
+        return dtree
