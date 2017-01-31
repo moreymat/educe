@@ -107,7 +107,7 @@ def lowest_common_parent(treepositions):
 
     Parameters
     ----------
-    treepositions : list of tree positions
+    treepositions : :obj:`list` of tree positions
         see nltk.tree.Tree.treepositions()
 
     Returns
