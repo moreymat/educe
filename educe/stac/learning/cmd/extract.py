@@ -10,6 +10,7 @@ Extract features to CSV files
 
 from __future__ import print_function
 from os import path as fp
+import itertools
 import os
 import sys
 
@@ -17,7 +18,11 @@ from educe.learning.keygroup_vectorizer import (KeyGroupVectorizer)
 from educe.stac.annotation import (DIALOGUE_ACTS,
                                    SUBORDINATING_RELATIONS,
                                    COORDINATING_RELATIONS)
-from educe.stac.learning import features
+from educe.stac.learning.doc_vectorizer import (
+    DialogueActVectorizer, LabelVectorizer, mk_high_level_dialogues,
+    extract_pair_features, extract_single_features, read_corpus_inputs)
+
+
 import educe.corpus
 from educe.learning.edu_input_format import (dump_all,
                                              labels_comment,
@@ -29,12 +34,6 @@ import educe.glozz
 import educe.stac
 import educe.util
 
-from ..doc_vectorizer import (DialogueActVectorizer,
-                              LabelVectorizer)
-from ..features import (strip_cdus,
-                        mk_high_level_dialogues,
-                        extract_pair_features,
-                        extract_single_features)
 
 NAME = 'extract'
 
@@ -84,12 +83,9 @@ def config_argparser(parser):
 
 def main_single(args):
     """Extract feature vectors for single EDUs in the corpus."""
-    inputs = features.read_corpus_inputs(args)
+    inputs = read_corpus_inputs(args)
     stage = 'unannotated' if args.parsing else 'units'
     dialogues = list(mk_high_level_dialogues(inputs, stage))
-    # these paths should go away once we switch to a proper dumper
-    out_file = fp.join(args.output,
-                       fp.basename(args.corpus) + '.dialogue-acts.sparse')
     instance_generator = lambda x: x.edus[1:]  # drop fake root
 
     # pylint: disable=invalid-name
@@ -102,8 +98,12 @@ def main_single(args):
     labtor = DialogueActVectorizer(instance_generator, DIALOGUE_ACTS)
     y_gen = labtor.transform(dialogues)
 
+    # create directory structure
     if not fp.exists(args.output):
         os.makedirs(args.output)
+    # these paths should go away once we switch to a proper dumper
+    out_file = fp.join(args.output,
+                       fp.basename(args.corpus) + '.dialogue-acts.sparse')
 
     # list dialogue acts
     comment = labels_comment(labtor.labelset_)
@@ -120,19 +120,16 @@ def main_single(args):
 
 def main_pairs(args):
     """Extract feature vectors for pairs of EDUs in the corpus."""
-    inputs = features.read_corpus_inputs(args)
+    inputs = read_corpus_inputs(args)
     stage = 'units' if args.parsing else 'discourse'
     dialogues = list(mk_high_level_dialogues(inputs, stage))
-    # these paths should go away once we switch to a proper dumper
-    out_file = fp.join(args.output,
-                       fp.basename(args.corpus) + '.relations.sparse')
     instance_generator = lambda x: x.edu_pairs()
 
     labels = frozenset(SUBORDINATING_RELATIONS +
                        COORDINATING_RELATIONS)
 
     # pylint: disable=invalid-name
-    # scikit-convention
+    # X, y follow the naming convention in sklearn
     feats = extract_pair_features(inputs, stage)
     vzer = KeyGroupVectorizer()
     if args.parsing or args.vocabulary:
@@ -145,14 +142,14 @@ def main_pairs(args):
                              zero=args.parsing)
     y_gen = labtor.transform(dialogues)
 
+    # create directory structure
     if not fp.exists(args.output):
         os.makedirs(args.output)
+    # these paths should go away once we switch to a proper dumper
+    out_file = fp.join(args.output,
+                       fp.basename(args.corpus) + '.relations.sparse')
 
-    dump_all(X_gen,
-             y_gen,
-             out_file,
-             labtor.labelset_,
-             dialogues,
+    dump_all(X_gen, y_gen, out_file, labtor.labelset_, dialogues,
              instance_generator)
     # dump vocabulary
     vocab_file = out_file + '.vocab'
