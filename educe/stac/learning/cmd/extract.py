@@ -98,23 +98,31 @@ def main_single(args):
     labtor = DialogueActVectorizer(instance_generator, DIALOGUE_ACTS)
     y_gen = labtor.transform(dialogues)
 
-    # create directory structure
-    if not fp.exists(args.output):
-        os.makedirs(args.output)
-    # these paths should go away once we switch to a proper dumper
-    out_file = fp.join(args.output,
-                       fp.basename(args.corpus) + '.dialogue-acts.sparse')
+    # create directory structure: {output}/
+    outdir = args.output
+    if not fp.exists(outdir):
+        os.makedirs(outdir)
+
+    corpus_name = fp.basename(args.corpus)
 
     # list dialogue acts
     comment = labels_comment(labtor.labelset_)
 
     # dump: EDUs, pairings, vectorized pairings with label
+    # these paths should go away once we switch to a proper dumper
+    out_file = fp.join(outdir,
+                       corpus_name + '.dialogue-acts.sparse')
     edu_input_file = out_file + '.edu_input'
     dump_edu_input_file(dialogues, edu_input_file)
     dump_svmlight_file(X_gen, y_gen, out_file, comment=comment)
 
     # dump vocabulary
-    vocab_file = out_file + '.vocab'
+    # WIP 2017-01-11 we might need to insert ".{instance_descr}",
+    # with e.g. instance_descr='edus', before ".sparse", so as to match
+    # the naming scheme currently used for RST
+    vocab_file = fp.join(outdir,
+                         '{corpus_name}.dialogue-acts.sparse.vocab'.format(
+                             corpus_name=corpus_name))
     dump_vocabulary(vzer.vocabulary_, vocab_file)
 
 
@@ -143,16 +151,23 @@ def main_pairs(args):
     y_gen = labtor.transform(dialogues)
 
     # create directory structure
-    if not fp.exists(args.output):
-        os.makedirs(args.output)
+    outdir = args.output
+    if not fp.exists(outdir):
+        os.makedirs(outdir)
+
+    corpus_name = fp.basename(args.corpus)
+
     # these paths should go away once we switch to a proper dumper
-    out_file = fp.join(args.output,
-                       fp.basename(args.corpus) + '.relations.sparse')
+    out_file = fp.join(outdir,
+                       corpus_name + '.relations.sparse')
 
     dump_all(X_gen, y_gen, out_file, labtor.labelset_, dialogues,
              instance_generator)
+
     # dump vocabulary
-    vocab_file = out_file + '.vocab'
+    vocab_file = fp.join(outdir,
+                         '{corpus_name}.relations.sparse.vocab'.format(
+                             corpus_name=corpus_name))
     dump_vocabulary(vzer.vocabulary_, vocab_file)
 
 
