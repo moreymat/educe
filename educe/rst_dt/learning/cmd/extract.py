@@ -22,7 +22,6 @@ import educe.glozz
 import educe.stac
 import educe.util
 
-from educe.learning.cdu_input_format import dump_all_cdus
 from educe.learning.edu_input_format import (dump_all, dump_labels,
                                              load_labels)
 from educe.learning.vocabulary_format import (dump_vocabulary,
@@ -116,6 +115,16 @@ def config_argparser(parser):
                         action='store_true',
                         help=("Instances are unordered pairs: "
                               "(src, tgt) == (tgt, src)"))
+    # WIP 2017-02-02 toggle between corpus- and doc-centric feature
+    # extraction
+    parser.add_argument('--file_split',
+                        choices=['doc', 'corpus'],
+                        default='corpus',
+                        help=("Level of granularity for each set of"
+                              "files: 'doc' produces one set of files per"
+                              "document ; 'corpus' one set of files per"
+                              "corpus split (e.g. 'train', 'test')"))
+    # end WIP toggle between corpus- and doc-centric feature extraction
     parser.set_defaults(func=main)
 
 
@@ -126,7 +135,8 @@ def config_argparser(parser):
 def extract_dump_instances(docs, instance_generator, feature_set,
                            lecsie_data_dir, vocabulary,
                            split_feat_space, labels,
-                           live, ordered_pairs, output, corpus):
+                           live, ordered_pairs, output, corpus,
+                           file_split='corpus'):
     """Extract and dump instances.
 
     Parameters
@@ -167,11 +177,17 @@ def extract_dump_instances(docs, instance_generator, feature_set,
     # setup persistency
     if not os.path.exists(output):
         os.makedirs(output)
+
+    corpus_name = os.path.basename(corpus)
+
     if live:
-        fn_out = 'extracted-features.{}'.format(instance_descr)
+        fn_out = 'extracted-features.{instance_descr}'.format(
+            instance_descr=instance_descr)
     else:
-        fn_out = '{}.relations.{}'.format(
-            os.path.basename(corpus), instance_descr)
+        fn_out = '{corpus_name}.relations.{instance_descr}'.format(
+            corpus_name=corpus_name,
+            instance_descr=instance_descr)
+
     # vocabulary, labels
     fn_ext = '.sparse'  # our extension for sparse datasets (svmlight)
     vocab_file = os.path.join(output, fn_out + fn_ext + '.vocab')
@@ -226,19 +242,37 @@ def extract_dump_instances(docs, instance_generator, feature_set,
             y_gen = labtor.transform(docs)
 
     # dump instances to files
-    for doc, X, y in itertools.izip(docs, X_gen, y_gen):
-        # dump EDUs and features in svmlight format
-        doc_name = doc.key.doc
-        # TODO refactor
+    if file_split == 'doc':
+        # one set of files per document
+        for doc, X, y in itertools.izip(docs, X_gen, y_gen):
+            # dump EDUs and features in svmlight format
+            doc_name = doc.key.doc
+            # TODO refactor
+            if live:
+                fn_out = 'extracted-features.{}{}'.format(
+                    instance_descr, fn_ext)
+            else:
+                fn_out = '{}.relations.{}{}'.format(
+                    doc_name, instance_descr, fn_ext)
+            out_file = os.path.join(out_dir, fn_out)
+            # end TODO refactor
+            dump_all([X], [y], out_file, [doc], instance_gen)
+    elif file_split == 'corpus':
+        # one set of files per corpus (in fact, corpus split)
         if live:
-            fn_out = 'extracted-features.{}{}'.format(
-                instance_descr, fn_ext)
+            fn_out = 'extracted-features.{instance_descr}{fn_ext}'.format(
+                instance_descr=instance_descr, fn_ext=fn_ext)
         else:
-            fn_out = '{}.relations.{}{}'.format(
-                doc_name, instance_descr, fn_ext)
+            fn_out = ('{corpus_name}.relations.{instance_descr}{fn_ext}'
+                      .format(
+                          corpus_name=corpus_name,
+                          instance_descr=instance_descr,
+                          fn_ext=fn_ext))
         out_file = os.path.join(out_dir, fn_out)
-        # end TODO refactor
-        dump_all(X, y, out_file, doc, instance_gen)
+        dump_all(X_gen, y_gen, out_file, docs, instance_gen)
+    else:
+        raise ValueError('Unknown value for args.file_split : {}'.format(
+            args.file_split))
 
     # dump labelset
     if labels is not None:
@@ -399,4 +433,5 @@ def main(args):
                            live,
                            ordered_pairs,
                            args.output,
-                           args.corpus)
+                           args.corpus,
+                           file_split=args.file_split)

@@ -242,7 +242,7 @@ def extract_single_para(doc, edu_info, para_info):
     """paragraph features for the EDU"""
     # position of DU in paragraph
     try:
-        offset_para = du_info[0]['edu_idx_in_para']
+        offset_para = edu_info['edu_idx_in_para']
         if offset_para is not None:
             yield ('num_edus_from_para_start', offset_para)
     except KeyError:
