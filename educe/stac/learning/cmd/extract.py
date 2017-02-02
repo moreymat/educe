@@ -109,12 +109,33 @@ def main_single(args):
     comment = labels_comment(labtor.labelset_)
 
     # dump: EDUs, pairings, vectorized pairings with label
-    # these paths should go away once we switch to a proper dumper
-    out_file = fp.join(outdir,
-                       corpus_name + '.dialogue-acts.sparse')
-    edu_input_file = out_file + '.edu_input'
-    dump_edu_input_file(dialogues, edu_input_file)
-    dump_svmlight_file(X_gen, y_gen, out_file, comment=comment)
+    # WIP switch to a document (here dialogue) centric generation of data
+    # 1. create a folder for the corpus: {output}/{corpus}/
+    outdir_corpus = fp.join(outdir, corpus_name)
+    if not fp.exists(outdir_corpus):
+        os.makedirs(outdir_corpus)
+    # 2. dump edu_input and features files
+    if args.file_split == 'dialogue':
+        # one file per dialogue
+        for dia, X, y in itertools.izip(dialogues, X_gen, y_gen):
+            dia_id = dia.grouping
+            print('dump dialogue', dia_id)
+            # these paths should go away once we switch to a proper dumper
+            feat_file = fp.join(outdir_corpus,
+                                '{dia_id}.dialogue-acts.sparse'.format(
+                                    dia_id=dia_id))
+            edu_input_file = '{feat_file}.edu_input'.format(feat_file=feat_file)
+            dump_edu_input_file(dia, edu_input_file)
+            dump_svmlight_file(X, y, feat_file, comment=comment)
+    elif args.file_split == 'corpus':
+        # one file per corpus (in fact, corpus split)
+        # these paths should go away once we switch to a proper dumper
+        out_file = fp.join(outdir,
+                           corpus_name + '.dialogue-acts.sparse')
+        edu_input_file = out_file + '.edu_input'
+        dump_edu_input_file(dialogues, edu_input_file)
+        dump_svmlight_file(X_gen, y_gen, out_file, comment=comment)
+    # end WIP
 
     # dump vocabulary
     # WIP 2017-01-11 we might need to insert ".{instance_descr}",
@@ -157,12 +178,27 @@ def main_pairs(args):
 
     corpus_name = fp.basename(args.corpus)
 
-    # these paths should go away once we switch to a proper dumper
-    out_file = fp.join(outdir,
-                       corpus_name + '.relations.sparse')
+    # WIP switch to a document (here dialogue) centric generation of data
+    outdir_corpus = fp.join(outdir, corpus_name)
+    if not fp.exists(outdir_corpus):
+        os.makedirs(outdir_corpus)
+    if args.file_split == 'dialogue':
+        for dia, X, y in itertools.izip(dialogues, X_gen, y_gen):
+            dia_id = dia.grouping
+            # these paths should go away once we switch to a proper dumper
+            out_file = fp.join(outdir_corpus,
+                               '{dia_id}.relations.sparse'.format(
+                                   dia_id=dia_id))
+            dump_all(X, y, out_file, dia, instance_generator)
+    elif args.file_split == 'corpus':
+        # one file per corpus (in fact corpus split)
+        # these paths should go away once we switch to a proper dumper
+        out_file = fp.join(outdir,
+                           corpus_name + '.relations.sparse')
 
-    dump_all(X_gen, y_gen, out_file, labtor.labelset_, dialogues,
-             instance_generator)
+        dump_all(X_gen, y_gen, out_file, labtor.labelset_, dialogues,
+                 instance_generator)
+    # end WIP
 
     # dump vocabulary
     vocab_file = fp.join(outdir,
