@@ -352,7 +352,7 @@ class RstDepTree(object):
                 rel = treenode(tree).rel
                 left = tree[0]
                 right = tree[1]
-                nscode = "".join(treenode(kid).nuclearity[0] for kid in tree)
+                nscode = treenode(tree).nuclearity
                 lhead = walk(left)
                 rhead = walk(right)
 

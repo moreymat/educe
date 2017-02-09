@@ -593,59 +593,6 @@ def deptree_to_simple_rst_tree(dtree, allow_forest=False):
 
     (and so on, until all we have left is a single RST tree).
     """
-
-    def mk_leaf(edu):
-        """
-        Trivial partial tree for use when processing dependency
-        tree leaves
-        """
-        return TreeParts(edu=edu,
-                         edu_span=(edu.num, edu.num),
-                         span=edu.text_span(),
-                         rel="leaf",
-                         kids=[])
-
-    def parts_to_tree(nuclearity, parts):
-        """
-        Combine root nuclearity information with a partial tree
-        to form a full RST `SimpleTree`
-        """
-        node = Node(nuclearity,
-                    parts.edu_span,
-                    parts.span,
-                    parts.rel)
-        kids = parts.kids or [parts.edu]
-        return SimpleRSTTree(node, kids)
-
-    def connect_trees(src, tgt, rel, nuc):
-        """
-        Return a partial tree, assigning order and nuclearity to
-        child trees
-        """
-        tgt_nuc = nuc
-
-        if src.span.overlaps(tgt.span):
-            raise RstDtException("Span %s overlaps with %s " %
-                                 (src.span, tgt.span))
-        elif src.span <= tgt.span:
-            left = parts_to_tree(NUC_N, src)
-            right = parts_to_tree(tgt_nuc, tgt)
-        else:
-            left = parts_to_tree(tgt_nuc, tgt)
-            right = parts_to_tree(NUC_N, src)
-
-        l_edu_span = treenode(left).edu_span
-        r_edu_span = treenode(right).edu_span
-
-        edu_span = (min(l_edu_span[0], r_edu_span[0]),
-                    max(l_edu_span[1], r_edu_span[1]))
-        res = TreeParts(edu=src.edu,
-                        edu_span=edu_span,
-                        span=src.span.merge(tgt.span),
-                        rel=rel,
-                        kids=[left, right])
-        return res
-
     def walk(ancestor, subtree):
         """
         The basic descent/ascent driver of our conversion algorithm.
@@ -674,28 +621,67 @@ def deptree_to_simple_rst_tree(dtree, allow_forest=False):
 
         Parameters
         ----------
-        ancestor: TreeParts
-            TreeParts of the ancestor
+        ancestor : SimpleRSTTree
+            SimpleRSTTree of the ancestor
 
-        subtree: int
+        subtree : int
             Index of the head of the subtree
 
         Returns
         -------
-        res: TreeParts
+        res : SimpleRSTTree
+            SimpleRSTTree covering ancestor and subtree.
         """
-        rel = dtree.labels[subtree]
-        nuc = dtree.nucs[subtree]
+        # create tree leaf for src
+        edu_src = dtree.edus[subtree]
+        src = SimpleRSTTree(
+            Node("leaf", (edu_src.num, edu_src.num), edu_src.text_span(),
+                 "leaf"),
+            [edu_src])
 
-        src = mk_leaf(dtree.edus[subtree])
         # descend into each child, but note that we are folding
         # rather than mapping, ie. we threading along a nested
         # RST tree as go from sibling to sibling
         ranked_targets = dtree.deps(subtree)
         for tgt in ranked_targets:
             src = walk(src, tgt)
-        # ancestor is None in the case of the root node
-        return connect_trees(ancestor, src, rel, nuc) if ancestor else src
+
+        if not ancestor:
+            # ancestor is None in the case of the root node
+            return src
+
+        # connect ancestor with src
+        n_anc = treenode(ancestor)
+        n_src = treenode(src)
+        rel = dtree.labels[subtree]
+        nuc = dtree.nucs[subtree]
+        #
+        if n_anc.span.overlaps(n_src.span):
+            raise RstDtException("Span %s overlaps with %s " %
+                                 (n_anc.span, n_src.span))
+        else:
+            if n_anc.span <= n_src.span:
+                left = ancestor
+                right = src
+                nuc_kids = [NUC_N, nuc]
+            else:
+                left = src
+                right = ancestor
+                nuc_kids = [nuc, NUC_N]
+            # nuc in SimpleRSTTree is the concatenation of the initial
+            # letter of each kid's nuclearity for the relation,
+            # eg. {NS, SN, NN}
+            nuc = ''.join(x[0] for x in nuc_kids)
+        # compute EDU span of the parent node from the kids'
+        l_edu_span = treenode(left).edu_span
+        r_edu_span = treenode(right).edu_span
+        edu_span = (min(l_edu_span[0], r_edu_span[0]),
+                    max(l_edu_span[1], r_edu_span[1]))
+        txt_span = n_anc.span.merge(n_src.span)
+        res = SimpleRSTTree(
+            Node(nuc, edu_span, txt_span, rel),
+            [left, right])
+        return res
 
     roots = dtree.real_roots_idx()
     if not allow_forest and len(roots) > 1:
@@ -705,8 +691,7 @@ def deptree_to_simple_rst_tree(dtree, allow_forest=False):
 
     srtrees = []
     for real_root in roots:
-        rparts = walk(None, real_root)
-        srtree = parts_to_tree(NUC_R, rparts)
+        srtree = walk(None, real_root)
         srtrees.append(srtree)
 
     # for the most common case, return the tree
@@ -716,16 +701,6 @@ def deptree_to_simple_rst_tree(dtree, allow_forest=False):
     # intra-sentential parsing with leaky sentences, or sentence-only
     # document parsing.
     return srtrees
-
-
-# pylint: disable=R0903, W0232
-class TreeParts(namedtuple("TreeParts_", "edu edu_span span rel kids")):
-    """
-    Partially built RST tree when converting from dependency tree
-    Kids here is nuclearity-annotated children
-    """
-    pass
-# pylint: enable=R0903, W0232
 
 
 def deptree_to_rst_tree(dtree):
