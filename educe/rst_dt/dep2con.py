@@ -592,6 +592,15 @@ def deptree_to_simple_rst_tree(dtree, allow_forest=False):
 
 
     (and so on, until all we have left is a single RST tree).
+
+    TODO
+    ----
+    * [ ] fix the signature of this function: change name or arguments
+          or return type, because the current implementation returns
+          either a SimpleRSTTree if allow_forest=False, or a list of
+          SimpleRSTTree if allow_forest=True. This is a likely source of
+          errors because SimpleRSTTrees are list-like, ie. tree[i]
+          returns the i-th child of a tree node...
     """
     def walk(ancestor, subtree):
         """
