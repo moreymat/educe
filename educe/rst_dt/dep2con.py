@@ -645,9 +645,9 @@ def deptree_to_simple_rst_tree(dtree, allow_forest=False):
         ranked_targets = dtree.deps(subtree)
         for tgt in ranked_targets:
             src = walk(src, tgt)
-
         if not ancestor:
-            # ancestor is None in the case of the root node
+            # first call: ancestor is None, subtree is the index of the
+            # (presumably unique) real root
             return src
 
         # connect ancestor with src

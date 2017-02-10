@@ -83,8 +83,10 @@ class RstDepTree(object):
     ----------
     edus : list of EDU
         List of the EDUs of this document.
+
     origin : Document?, optional
         TODO
+
     nary_enc : one of {'chain', 'tree'}, optional
         Type of encoding used for n-ary relations: 'chain' or 'tree'.
         This determines for example how fragmented EDUs are resolved.
@@ -298,7 +300,13 @@ class RstDepTree(object):
         return self.deps(_ROOT_HEAD)
 
     def set_origin(self, origin):
-        """Update the origin of this annotation"""
+        """Update the origin of this annotation.
+
+        Parameters
+        ----------
+        origin : FileId
+            File identifier of the origin of this annotation.
+        """
         self.origin = origin
 
     def spans(self):

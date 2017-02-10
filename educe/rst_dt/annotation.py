@@ -115,6 +115,11 @@ class EDU(Standoff):
     def set_origin(self, origin):
         """
         Update the origin of this annotation and any contained within
+
+        Parameters
+        ----------
+        origin : FileId
+            File identifier of the origin of this annotation.
         """
         self.origin = origin
 
@@ -297,8 +302,12 @@ class RSTTree(SearchableTree, Standoff):
         # end WIP head
 
     def set_origin(self, origin):
-        """
-        Update the origin of this annotation and any contained within
+        """Update the origin of this annotation and any contained within
+
+        Parameters
+        ----------
+        origin : FileId
+            File identifier of the origin of this annotation.
         """
         self.origin = origin
         for child in self:
@@ -465,9 +474,13 @@ class SimpleRSTTree(SearchableTree, Standoff):
         # end WIP head
 
     def set_origin(self, origin):
-        """
-        Recursively update the origin for this annotation, ie.
-        a little link to the document metadata for this annotation
+        """Recursively update the origin for this annotation, ie.
+        a little link to the document metadata for this annotation.
+
+        Parameters
+        ----------
+        origin : FileId
+            File identifier of the origin of this annotation.
         """
         self.origin = origin
         for child in self:
