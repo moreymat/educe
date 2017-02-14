@@ -39,7 +39,7 @@ class DialogueActVectorizer(object):
         """
         instance_generator to enumerate the instances from a doc
 
-        :type labels: set(string)
+        :type labels: list(string)
         """
         self.instance_generator = instance_generator
         self.labelset_ = {l: i for i, l in enumerate(labels, start=1)}
@@ -77,7 +77,7 @@ class LabelVectorizer(object):
     instance_generator : fun(doc) -> :obj:`list` of (EDU, EDU)
         Function to enumerate the instances from a doc.
 
-    labels : :obj:`set` of str
+    labels : :obj:`list` of str
         Labelset
 
     zero : boolean, defaults to False

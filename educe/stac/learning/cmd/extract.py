@@ -9,29 +9,28 @@ Extract features to CSV files
 """
 
 from __future__ import print_function
-from os import path as fp
+
 import itertools
 import os
+from os import path as fp
 import sys
 
+import educe.corpus
+import educe.glozz
+from educe.learning.edu_input_format import (dump_all, dump_labels,
+                                             dump_svmlight_file,
+                                             dump_edu_input_file,
+                                             load_labels)
 from educe.learning.keygroup_vectorizer import (KeyGroupVectorizer)
+from educe.learning.vocabulary_format import (dump_vocabulary,
+                                              load_vocabulary)
+import educe.stac
 from educe.stac.annotation import (DIALOGUE_ACTS,
                                    SUBORDINATING_RELATIONS,
                                    COORDINATING_RELATIONS)
 from educe.stac.learning.doc_vectorizer import (
     DialogueActVectorizer, LabelVectorizer, mk_high_level_dialogues,
     extract_pair_features, extract_single_features, read_corpus_inputs)
-
-
-import educe.corpus
-from educe.learning.edu_input_format import (dump_all,
-                                             labels_comment,
-                                             dump_svmlight_file,
-                                             dump_edu_input_file)
-from educe.learning.vocabulary_format import (dump_vocabulary,
-                                              load_vocabulary)
-import educe.glozz
-import educe.stac
 import educe.util
 
 
@@ -68,6 +67,13 @@ def config_argparser(parser):
     parser.add_argument('--vocabulary',
                         metavar='FILE',
                         help='Vocabulary file (for --parsing mode)')
+    # 2017-02-14 file for labels, for discourse relations
+    parser.add_argument('--labels',
+                        metavar='FILE',
+                        help='Read label set from given file '
+                        '(important when extracting test data for '
+                        'discourse relations)')
+    # end labels
     parser.add_argument('--ignore-cdus', action='store_true',
                         help='Avoid going into CDUs')
     parser.add_argument('--strip-mode',
@@ -107,7 +113,15 @@ def main_single(args):
     # TODO? just transform() if args.parsing or args.vocabulary?
     X_gen = vzer.fit_transform(feats)
     # pylint: enable=invalid-name
-    labtor = DialogueActVectorizer(instance_generator, DIALOGUE_ACTS)
+    if args.labels is not None:
+        labelset = load_labels(args.labels)
+        labels = [lbl for lbl, idx
+                  in sorted(labelset.items(), key=lambda k, v: v)]
+        # DialogueActVectorizer.__init__ reserves (0, UNK)
+        labels = labels[1:]
+    else:
+        labels = sorted(DIALOGUE_ACTS)
+    labtor = DialogueActVectorizer(instance_generator, labels)
     y_gen = labtor.transform(dialogues)
 
     # create directory structure: {output}/
@@ -116,9 +130,6 @@ def main_single(args):
         os.makedirs(outdir)
 
     corpus_name = fp.basename(args.corpus)
-
-    # list dialogue acts
-    comment = labels_comment(labtor.labelset_)
 
     # dump: EDUs, pairings, vectorized pairings with label
     # WIP switch to a document (here dialogue) centric generation of data
@@ -129,6 +140,7 @@ def main_single(args):
     # 2. dump edu_input and features files
     if args.file_split == 'dialogue':
         # one file per dialogue
+        # pylint: disable=invalid-name
         for dia, X, y in itertools.izip(dialogues, X_gen, y_gen):
             dia_id = dia.grouping
             print('dump dialogue', dia_id)
@@ -138,7 +150,8 @@ def main_single(args):
                                     dia_id=dia_id))
             edu_input_file = '{feat_file}.edu_input'.format(feat_file=feat_file)
             dump_edu_input_file(dia, edu_input_file)
-            dump_svmlight_file(X, y, feat_file, comment=comment)
+            dump_svmlight_file(X, y, feat_file)
+        # pylint: enable=invalid-name
     elif args.file_split == 'corpus':
         # one file per corpus (in fact, corpus split)
         # these paths should go away once we switch to a proper dumper
@@ -146,7 +159,7 @@ def main_single(args):
                            corpus_name + '.dialogue-acts.sparse')
         edu_input_file = out_file + '.edu_input'
         dump_edu_input_file(dialogues, edu_input_file)
-        dump_svmlight_file(X_gen, y_gen, out_file, comment=comment)
+        dump_svmlight_file(X_gen, y_gen, out_file)
     # end WIP
 
     # dump vocabulary
@@ -157,6 +170,11 @@ def main_single(args):
                          '{corpus_name}.dialogue-acts.sparse.vocab'.format(
                              corpus_name=corpus_name))
     dump_vocabulary(vzer.vocabulary_, vocab_file)
+    # dump labels
+    labels_file = fp.join(outdir,
+                          '{corpus_name}.dialogue-acts.labels'.format(
+                              corpus_name=corpus_name))
+    dump_labels(labtor.labelset_, labels_file)
 
 
 def main_pairs(args):
@@ -166,8 +184,17 @@ def main_pairs(args):
     dialogues = list(mk_high_level_dialogues(inputs, stage))
     instance_generator = lambda x: x.edu_pairs()
 
-    labels = frozenset(SUBORDINATING_RELATIONS +
-                       COORDINATING_RELATIONS)
+    if args.labels is not None:
+        labelset = load_labels(args.labels)
+        labels = [lbl for lbl, idx
+                  in sorted(labelset.items(), key=lambda k, v: v)]
+        # LabelVectorizer.__init__ automatically reserves the first three
+        # indices: (0, UNK), (1, ROOT), (2, UNRELATED)
+        labels = labels[3:]
+    else:
+        labels = frozenset(SUBORDINATING_RELATIONS +
+                           COORDINATING_RELATIONS)
+        labels = sorted(labels)
 
     # pylint: disable=invalid-name
     # X, y follow the naming convention in sklearn
@@ -190,11 +217,13 @@ def main_pairs(args):
 
     corpus_name = fp.basename(args.corpus)
 
-    # WIP switch to a document (here dialogue) centric generation of data
     outdir_corpus = fp.join(outdir, corpus_name)
     if not fp.exists(outdir_corpus):
         os.makedirs(outdir_corpus)
+
+    # WIP switch to a document (here dialogue) centric generation of data
     if args.file_split == 'dialogue':
+        # pylint: disable=invalid-name
         for dia, X, y in itertools.izip(dialogues, X_gen, y_gen):
             dia_id = dia.grouping
             # these paths should go away once we switch to a proper dumper
@@ -202,6 +231,7 @@ def main_pairs(args):
                                '{dia_id}.relations.sparse'.format(
                                    dia_id=dia_id))
             dump_all(X, y, out_file, [dia], instance_generator)
+        # pylint: enable=invalid-name
     elif args.file_split == 'corpus':
         # one file per corpus (in fact corpus split)
         # these paths should go away once we switch to a proper dumper
@@ -216,6 +246,11 @@ def main_pairs(args):
                          '{corpus_name}.relations.sparse.vocab'.format(
                              corpus_name=corpus_name))
     dump_vocabulary(vzer.vocabulary_, vocab_file)
+    # dump labels
+    labels_file = fp.join(outdir,
+                          '{corpus_name}.relations.labels'.format(
+                              corpus_name=corpus_name))
+    dump_labels(labtor.labelset_, labels_file)
 
 
 def main(args):
