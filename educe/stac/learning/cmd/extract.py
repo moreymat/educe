@@ -74,6 +74,18 @@ def config_argparser(parser):
                         choices=['head', 'broadcast', 'custom'],
                         default='head',
                         help='CDUs stripping method (if going into CDUs)')
+    # WIP 2017-02-02 toggle between corpus- and doc-centric feature
+    # extraction
+    parser.add_argument('--file_split',
+                        choices=['dialogue', 'corpus'],
+                        default='corpus',
+                        help=("Level of granularity for each set of "
+                              "files: "
+                              "'dialogue' produces one set of files per "
+                              "dialogue ; "
+                              "'corpus' one set of files per corpus "
+                              "split (e.g. 'train', 'test')"))
+    # end WIP toggle between corpus- and doc-centric feature extraction
     parser.set_defaults(func=main)
 
 # ---------------------------------------------------------------------
@@ -189,15 +201,14 @@ def main_pairs(args):
             out_file = fp.join(outdir_corpus,
                                '{dia_id}.relations.sparse'.format(
                                    dia_id=dia_id))
-            dump_all(X, y, out_file, dia, instance_generator)
+            dump_all(X, y, out_file, [dia], instance_generator)
     elif args.file_split == 'corpus':
         # one file per corpus (in fact corpus split)
         # these paths should go away once we switch to a proper dumper
         out_file = fp.join(outdir,
                            corpus_name + '.relations.sparse')
 
-        dump_all(X_gen, y_gen, out_file, labtor.labelset_, dialogues,
-                 instance_generator)
+        dump_all(X_gen, y_gen, out_file, dialogues, instance_generator)
     # end WIP
 
     # dump vocabulary
