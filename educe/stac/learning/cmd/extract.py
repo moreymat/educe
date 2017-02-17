@@ -145,19 +145,24 @@ def main_single(args):
             dia_id = dia.grouping
             print('dump dialogue', dia_id)
             # these paths should go away once we switch to a proper dumper
-            feat_file = fp.join(outdir_corpus,
-                                '{dia_id}.dialogue-acts.sparse'.format(
-                                    dia_id=dia_id))
-            edu_input_file = '{feat_file}.edu_input'.format(feat_file=feat_file)
+            feat_file = fp.join(
+                outdir_corpus,
+                '{dia_id}.dialogue-acts.sparse'.format(
+                    dia_id=dia_id))
+            edu_input_file = '{feat_file}.edu_input'.format(
+                feat_file=feat_file)
             dump_edu_input_file(dia, edu_input_file)
             dump_svmlight_file(X, y, feat_file)
         # pylint: enable=invalid-name
     elif args.file_split == 'corpus':
         # one file per corpus (in fact, corpus split)
         # these paths should go away once we switch to a proper dumper
-        out_file = fp.join(outdir,
-                           corpus_name + '.dialogue-acts.sparse')
-        edu_input_file = out_file + '.edu_input'
+        out_file = fp.join(
+            outdir_corpus,
+            '{corpus_name}.dialogue-acts.sparse'.format(
+                corpus_name=corpus_name))
+        edu_input_file = '{out_file}.edu_input'.format(
+            out_file=out_file)
         dump_edu_input_file(dialogues, edu_input_file)
         dump_svmlight_file(X_gen, y_gen, out_file)
     # end WIP
@@ -227,16 +232,19 @@ def main_pairs(args):
         for dia, X, y in itertools.izip(dialogues, X_gen, y_gen):
             dia_id = dia.grouping
             # these paths should go away once we switch to a proper dumper
-            out_file = fp.join(outdir_corpus,
-                               '{dia_id}.relations.sparse'.format(
-                                   dia_id=dia_id))
+            out_file = fp.join(
+                outdir_corpus,
+                '{dia_id}.relations.sparse'.format(
+                    dia_id=dia_id))
             dump_all(X, y, out_file, [dia], instance_generator)
         # pylint: enable=invalid-name
     elif args.file_split == 'corpus':
         # one file per corpus (in fact corpus split)
         # these paths should go away once we switch to a proper dumper
-        out_file = fp.join(outdir,
-                           corpus_name + '.relations.sparse')
+        out_file = fp.join(
+            outdir_corpus,
+            '{corpus_name}.relations.sparse'.format(
+                corpus_name=corpus_name))
 
         dump_all(X_gen, y_gen, out_file, dialogues, instance_generator)
     # end WIP
