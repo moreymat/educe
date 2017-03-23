@@ -16,7 +16,7 @@ import textwrap
 import pydot
 
 from educe.annotation import Annotation, Relation, RelSpan
-from .. import stac, annotation
+from .. import stac
 import educe.graph
 import educe.stac.annotation as stac_anno
 
@@ -60,17 +60,18 @@ class Graph(educe.graph.Graph):
     # --------------------------------------------------
 
     def cdu_head(self, cdu, sloppy=False):
-        """
-        Given a CDU, return its head, defined here as the only DU
-        that is not pointed to by any other member of this CDU.
+        """Get the head DU of a CDU.
 
-        This is meant to approximate the description in Muller 2012
+        The head of a CDU is defined here as the only DU that is not
+        pointed to by any other member of this CDU.
+
+        This is meant to approximate the description in (Muller 2012)
         (/Constrained decoding for text-level discourse parsing/):
 
         1. in the highest DU in its subgraph in terms of suboordinate
-           relations
+           relations,
         2. in case of a tie in #1, the leftmost in terms of coordinate
-           relations
+           relations.
 
         Corner cases:
 
@@ -78,6 +79,22 @@ class Graph(educe.graph.Graph):
         * If the CDU contains more than one head (annotation error)
           and if sloppy is True, return the textually leftmost one;
           otherwise, raise a MultiheadedCduException
+
+        Parameters
+        ----------
+        cdu : CDU
+            The CDU under examination.
+
+        sloppy : boolean, defaults to False
+            If True, return the textually leftmost DU if the CDU
+            contains more than one head ; if False, raise a
+            `MultiheadedCduException` in such cases.
+
+        Returns
+        -------
+        cand : Unit or Schema? or None
+            The head DU of this CDU ; it is None if no member of the CDU
+            qualifies as a head (loop?).
         """
         hyperedge = self.edgeform(cdu)
         members = self.cdu_members(cdu)
@@ -120,17 +137,18 @@ class Graph(educe.graph.Graph):
         """
         heads = {}
 
-        def get_head(c):
-            if c in heads:
-                return heads[c]
-            hd = self.cdu_head(c, sloppy)
-            if (hd is not None) and self.is_cdu(hd):
-                hd = get_head(hd)
-            heads[c] = hd
-            return hd
+        def get_head(x_cdu):
+            """Recursive helper to find the head EDU of a CDU"""
+            if x_cdu in heads:
+                return heads[x_cdu]
+            x_hd = self.cdu_head(x_cdu, sloppy=sloppy)
+            if (x_hd is not None) and self.is_cdu(x_hd):
+                x_hd = get_head(x_hd)
+            heads[x_cdu] = x_hd
+            return x_hd
 
-        for c in self.cdus():
-            get_head(c)
+        for x_cdu in self.cdus():
+            get_head(x_cdu)
         return heads
 
     def without_cdus(self, sloppy=False, mode='head'):
@@ -142,32 +160,32 @@ class Graph(educe.graph.Graph):
         We'll probably deprecate this function, since you could
         just as easily call deepcopy yourself
         """
-        g2 = copy.deepcopy(self)
-        g2.strip_cdus(sloppy=sloppy, mode=mode)
-
-        return g2
+        res = copy.deepcopy(self)
+        res.strip_cdus(sloppy=sloppy, mode=mode)
+        return res
 
     def strip_cdus(self, sloppy=False, mode='head'):
-        """ Delete all CDUs in this graph.
-            Links involving a CDU will point to/from the elements
-            of this CDU.
-            Non-head modes may add new edges to the graph.
+        """Delete all CDUs in this graph.
 
-            Parameters
-            ----------
-            sloppy: boolean, default=False
-                See `cdu_head`.
+        Links involving a CDU will point to/from the elements of this
+        CDU.
+        Non-head modes may add new edges to the graph.
 
-            mode: string, default='head'
-                Strategy for replacing edges involving CDUs.
-                `head` will relocate the edge on the recursive head of the
-                CDU (see `recursive_cdu_heads`).
-                `broadcast` will distribute the edge over all EDUs belonging
-                to the CDU. A copy of the edge will be created for each of
-                them. If the edge's source and target are both distributed,
-                a new copy will be created for each combination of EDUs.
-                `custom` (or any other string) will distribute or relocate on
-                the head depending on the relation label.
+        Parameters
+        ----------
+        sloppy : boolean, default=False
+            See `cdu_head`.
+
+        mode : string, default='head'
+            Strategy for replacing edges involving CDUs.
+            `head` will relocate the edge on the recursive head of the
+            CDU (see `recursive_cdu_heads`).
+            `broadcast` will distribute the edge over all EDUs belonging
+            to the CDU. A copy of the edge will be created for each of
+            them. If the edge's source and target are both distributed,
+            a new copy will be created for each combination of EDUs.
+            `custom` (or any other string) will distribute or relocate on
+            the head depending on the relation label.
         """
 
         # Set of labels for which the source node should be distributed
@@ -193,19 +211,23 @@ class Graph(educe.graph.Graph):
             'Elaboration'))
 
         # Warning: heads.keys() are hyperedges
-        heads = self.recursive_cdu_heads(sloppy)
+        heads = self.recursive_cdu_heads(sloppy=sloppy)
 
         def distrib_candidates(links, label):
-            """ Return a pair of list of nodes to be attached,
-                depending on the edge label.
+            """Return a pair of list of nodes to be attached, depending
+            on the edge label.
             """
             src_node, tgt_node = links
 
             def candidates(node, distributive):
+                """Nodes to which edges from or to `node` should be
+                distributed.
+                """
                 if not self.is_cdu(node):
                     return [node]
-                if ((mode != 'head' and
-                     (mode == 'broadcast' or label in distributive))):
+
+                if ((mode == 'broadcast' or
+                     (mode != 'head' and label in distributive))):
                     # Either distribute over all components...
                     # (always do in broadcast mode)
                     nodes = edu_components(node)
@@ -302,11 +324,9 @@ class Graph(educe.graph.Graph):
         Return discourse units in this graph, ordered by their starting point,
         and in case of a tie their inverse width (ie. widest first)
         """
-        def is_interesting_du(n):
-            return (self.is_edu(n) or
-                    (self.is_cdu(n) and self.cdu_members(n)))
-
-        dus = list(filter(is_interesting_du, self.nodes()))
+        dus = [x for x in self.nodes()
+               if (self.is_edu(x) or
+                   (self.is_cdu(x) and self.cdu_members(x)))]
         return self.sorted_first_outermost(dus)
 
     def _repr_dot_(self):
@@ -394,9 +414,7 @@ class DotGraph(educe.graph.DotGraph):
             attrs['fontcolor'] = anno.features['highlight']
         elif not self._edu_label(anno) or not stac.is_edu(anno):
             attrs['fontcolor'] = 'red'
-        # pylint: disable=star-args
         self.add_node(pydot.Node(node, **attrs))
-        # pylint: enable=star-args
 
     def _rel_label(self, anno):
         return anno.type

@@ -23,7 +23,8 @@ import os.path
 
 import nltk.tree
 
-from educe import stac, corpus
+from educe import stac
+from educe.corpus import FileId
 from educe.external.corenlp import (CoreNlpToken, CoreNlpDocument,
                                     CoreNlpWrapper)
 from educe.external.coref import (Chain, Mention)
@@ -40,7 +41,7 @@ def turn_id_text(doc):
     Return a list of (turn ids, text) tuples
     in span order (no speaker)
     """
-    turns = sorted(filter(stac.is_turn, doc.units),
+    turns = sorted((x for x in doc.units if stac.is_turn(x)),
                    key=lambda k: k.text_span())
     return [(stac.turn_id(turn),
              stac.split_turn_text(doc.text(turn.text_span()))[1])
@@ -70,8 +71,9 @@ def run_pipeline(corpus, outdir, corenlp_dir, split=False):
             turns = []
             for k in corpus:
                 if k.doc == d:
-                    turns.extend(list(filter(stac.is_turn, corpus[k].units)))
-            turn_ids = [int(t.features['Identifier']) for t in turns]
+                    turns.extend([x for x in corpus[k].units
+                                  if stac.is_turn(x)])
+            turn_ids = [stac.turn_id(t)[0] for t in turns]
             digits[d] = max(2, int(math.ceil(math.log10(max(turn_ids)))))
 
     # dump the turn text
@@ -142,10 +144,10 @@ def from_corenlp_output_filename(f):
     prefix = os.path.splitext(prefix)[0]
 
     parts = prefix.split('_')
-    file_id = corpus.FileId(doc=parts[0],
-                            subdoc=parts[1] if len(parts) > 1 else None,
-                            stage='unannotated',
-                            annotator=None)
+    file_id = FileId(doc=parts[0],
+                     subdoc=parts[1] if len(parts) > 1 else None,
+                     stage='unannotated',
+                     annotator=None)
 
     turn_id = parts[-1] if len(parts) == 3 else None
     return file_id, turn_id
@@ -189,10 +191,11 @@ def read_corenlp_result(doc, corenlp_doc, tid=None):
         if tid is None:
             return stac.is_turn(x)
         else:
-            x_tid = x.features['Identifier']
+            x_tid = stac.turn_id(x)
             return stac.is_turn(x) & tid == x_tid
 
-    turns = sorted(filter(is_matching_turn, doc.units), key=lambda k: k.span)
+    turns = sorted((x for x in doc.units if is_matching_turn(x)),
+                   key=lambda k: k.span)
     sentences = corenlp_doc.get_ordered_sentence_list()
 
     if len(turns) != len(sentences):
@@ -261,7 +264,7 @@ def read_corenlp_result(doc, corenlp_doc, tid=None):
 
             start = local_id(m['start'])
             end = local_id(m['end'])
-            token_range = list(map(global_id, range(start, end)))
+            token_range = [global_id(x) for x in range(start, end)]
             tokens = [educe_tokens[sid][t] for t in token_range]
             head = educe_tokens[sid][m['head']]
             mentions.append(Mention(tokens, head, m['most_representative']))

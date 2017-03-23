@@ -18,7 +18,7 @@ import numpy as np
 
 from educe.annotation import Span
 from educe.stac.annotation import (game_turns, is_dialogue, is_edu,
-                                   is_paragraph, is_turn,
+                                   is_paragraph, is_turn, turn_id,
                                    DIALOGUE_ACTS, RENAMES)
 from educe.stac.context import enclosed
 from educe.stac.edit.cmd.merge_dialogue import _concatenate_features
@@ -169,10 +169,9 @@ def check_matches(tgt_doc, matches, strict=True):
             print(u"Match gap in tgt doc ({})\t{}\t{}".format(
                 tgt_doc.origin, gap, gap_txt), file=sys.stderr)
         print('Matches: ', matches)
-        tgt_turns = set(x.features['Identifier']
-                        for x in tgt_doc.units
-                        if x.features.get('Identifier'))
-        print('Turns: ', sorted(tgt_turns, key=lambda x: int(x)))
+        tgt_turns = set(turn_id(x) for x in tgt_doc.units
+                        if turn_id(x) is not None)
+        print('Turns: ', sorted(tgt_turns))
         if strict:
             oops = 'there are match gaps in the target document {}: {}'
             raise WeaveException(oops.format(tgt_doc.origin, gaps))
@@ -366,7 +365,8 @@ def stretch_match(updates, src_doc, tgt_doc, doc_span_src, doc_span_tgt,
                                       src_doc, tgt_doc,
                                       doc_span_src=span_src,
                                       doc_span_tgt=span_tgt
-                                  ).replace('\t ', '').replace('\t', '').strip()) and
+                                  ).replace('\t ', '').replace('\t', '')
+                                  .strip()) and
                                  ext_span_src.encloses(shifted_span_tgt))]
         # extend list of 1-1 exact matches with 1-1 stretch matches
         if src_equiv_stretch:
@@ -390,8 +390,10 @@ def stretch_match(updates, src_doc, tgt_doc, doc_span_src, doc_span_tgt,
             src_equiv_seq = sorted(src_equiv_cands, key=lambda x: x.span)
             # if the sequence covers the targeted span
             if ((src_equiv_seq and
-                 src_equiv_seq[0].span.char_start == shifted_span_tgt.char_start and
-                 src_equiv_seq[-1].span.char_end == shifted_span_tgt.char_end)):
+                 (src_equiv_seq[0].span.char_start ==
+                  shifted_span_tgt.char_start) and
+                 (src_equiv_seq[-1].span.char_end ==
+                  shifted_span_tgt.char_end))):
                 # and has no gap or just whitespaces
                 gap_str = ''.join(
                     src_doc.text(span=Span(elt_cur.span.char_end,
@@ -754,8 +756,8 @@ def shift_dialogues(doc_src, doc_res, updates, gen):
         for i, dlg_src in enumerate(dlgs_src):
             if dlg_src in updates.abnormal_src_only:
                 updates.abnormal_src_only.remove(dlg_src)
-            if (i in dlgs_src_matched
-                and dlg_src in updates.expected_src_only):
+            if ((i in dlgs_src_matched
+                 and dlg_src in updates.expected_src_only)):
                 # remove matched source dialogues, leave the unmatched
                 # ones in expected_src_only, so that they are added later
                 # to the woven document
@@ -867,8 +869,8 @@ def shift_dialogues(doc_src, doc_res, updates, gen):
                                  in zip(dlg2gturn_beg, dlg2gturn_end)))
         gturns_matched = set(gturns_matched)
         # each dialogue in doc_src is a game turn
-        dlgs_src =  sorted((x for x in doc_src.units if is_dialogue(x)),
-                           key=lambda x: x.span)
+        dlgs_src = sorted((x for x in doc_src.units if is_dialogue(x)),
+                          key=lambda x: x.span)
         # remove all source and target dialogues from updates
         for dlg_res in dlgs_res:
             if dlg_res in updates.abnormal_tgt_only:
@@ -876,8 +878,8 @@ def shift_dialogues(doc_src, doc_res, updates, gen):
         for i, dlg_src in enumerate(dlgs_src):
             if dlg_src in updates.abnormal_src_only:
                 updates.abnormal_src_only.remove(dlg_src)
-            if (i in gturns_matched
-                and dlg_src in updates.expected_src_only):
+            if ((i in gturns_matched
+                 and dlg_src in updates.expected_src_only)):
                 # remove matched source dialogues, leave the unmatched
                 # ones in expected_src_only, so that they are added later
                 # to the woven document
