@@ -18,7 +18,7 @@ import numpy as np
 
 from educe.annotation import Span
 from educe.stac.annotation import (game_turns, is_dialogue, is_edu,
-                                   is_paragraph, is_turn,
+                                   is_paragraph, is_turn, turn_id,
                                    DIALOGUE_ACTS, RENAMES)
 from educe.stac.context import enclosed
 from educe.stac.edit.cmd.merge_dialogue import _concatenate_features
@@ -169,10 +169,9 @@ def check_matches(tgt_doc, matches, strict=True):
             print(u"Match gap in tgt doc ({})\t{}\t{}".format(
                 tgt_doc.origin, gap, gap_txt), file=sys.stderr)
         print('Matches: ', matches)
-        tgt_turns = set(x.features['Identifier']
-                        for x in tgt_doc.units
-                        if x.features.get('Identifier'))
-        print('Turns: ', sorted(tgt_turns, key=lambda x: int(x)))
+        tgt_turns = set(turn_id(x) for x in tgt_doc.units
+                        if turn_id(x) is not None)
+        print('Turns: ', sorted(tgt_turns))
         if strict:
             oops = 'there are match gaps in the target document {}: {}'
             raise WeaveException(oops.format(tgt_doc.origin, gaps))

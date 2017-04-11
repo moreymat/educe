@@ -4,7 +4,7 @@
 
 from __future__ import absolute_import, print_function
 
-from collections import defaultdict, namedtuple
+from collections import defaultdict, namedtuple, Sequence
 import itertools
 import copy
 import os
@@ -75,13 +75,18 @@ class LabelVectorizer(object):
     Parameters
     ----------
     instance_generator : fun(doc) -> :obj:`list` of (EDU, EDU)
-        Function to enumerate the instances from a doc.
+        Function to enumerate the candidate instances from a doc.
 
     labels : :obj:`list` of str
-        Labelset
+        Set of domain labels. If it is provided as a sequence, the
+        order of labels is preserved ; otherwise its elements are
+        sorted before storage. This guarantees a stable behaviour
+        across runs and platforms, which greatly facilitates
+        the comparability of models and results.
 
     zero : boolean, defaults to False
-        If True, emit zero for all instances.
+        If True, transform() will return the unknown label (UNK) for
+        all (MM or only unrelated?) pairs.
 
     Attributes
     ----------
@@ -92,6 +97,8 @@ class LabelVectorizer(object):
 
     def __init__(self, instance_generator, labels, zero=False):
         self.instance_generator = instance_generator
+        if not isinstance(labels, Sequence):
+            labels = sorted(labels)
         self.labelset_ = {l: i for i, l in enumerate(labels, start=3)}
         self.labelset_[UNK] = 0
         self.labelset_[ROOT] = 1

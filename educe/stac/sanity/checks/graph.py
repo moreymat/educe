@@ -5,8 +5,11 @@ Sanity checker: fancy graph-based errors
 from __future__ import print_function
 from collections import defaultdict
 import copy
+import itertools
 
 from educe import stac
+# from educe.stac.annotation import (COORDINATING_RELATIONS,
+#                                    SUBORDINATING_RELATIONS)
 from educe.stac.context import sorted_first_widest
 from educe.stac.rfc import (BasicRfc)
 import educe.stac.graph as egr
@@ -26,6 +29,35 @@ from ..report import (mk_microphone,
 
 BACKWARDS_WHITELIST = ["Conditional"]
 "relations that are allowed to go backwards"
+
+PAIRS_WHITELIST = [
+    # Julie's original list (2017-02-28)
+    ('Contrast', 'Comment'),
+    ('Narration', 'Result'),
+    ('Narration', 'Continuation'),
+    ('Parallel', 'Continuation'),
+    ('Parallel', 'Background'),
+    # additional pairs vetted by Nicholas (2017-03-01)
+    ('Comment', 'Acknowledgement'),
+    ('Parallel', 'Acknowledgement'),
+    ('Question-answer_pair', 'Contrast'),
+    ('Question-answer_pair', 'Parallel'),
+]
+"""pairs of relations that are explicitly allowed between the same
+source/target DUs"""
+# un-comment if you modify the above whitelist: this catches potential
+# typos (tried and tested...)
+# ALL_RELATIONS = set(SUBORDINATING_RELATIONS + COORDINATING_RELATIONS)
+# assert all(x[0] in ALL_RELATIONS and x[1] in ALL_RELATIONS
+#            for x in PAIRS_WHITELIST)
+
+PAIRS_WHITEDICT = defaultdict(set)
+for rel1, rel2 in PAIRS_WHITELIST:
+    PAIRS_WHITEDICT[rel1].add(rel2)
+    PAIRS_WHITEDICT[rel2].add(rel1)
+"""Dict of pairwise compatible relations (more useful to check
+membership)
+"""
 
 
 def rel_link_item(doc, contexts, gra, rel):
@@ -55,6 +87,59 @@ def search_graph_relations(inputs, k, gra, pred):
     contexts = inputs.contexts[k]
     return [rel_link_item(doc, contexts, gra, x)
             for x in gra.relations() if pred(gra, contexts, x)]
+
+
+# 2017-03-02 whitelist certain pairs of relations
+def search_graph_relations_same_dus(inputs, k, gra, pred):
+    """Return a list of ReportItem (one per member of the set) for any
+    set of relation instances within the graph for which some predicate
+    is True.
+
+    Parameters
+    ----------
+    inputs : educe.stac.sanity.main.SanityChecker
+        SanityChecker, with attributes `corpus` and `contexts`.
+
+    k : FileId
+        Identifier of the desired Glozz document.
+
+    gra : educe.stac.graph.Graph
+        Graph that corresponds to the discourse structure (?).
+
+    pred : function from (gra, contexts, rel_set) to boolean
+        Predicate function.
+
+    Returns
+    -------
+    report_items : list of ReportItem
+        One ReportItem for each relation instance that belongs to a set
+        of instances, on the same DUs, where pred is True.
+    """
+    doc = inputs.corpus[k]
+    contexts = inputs.contexts[k]
+    # group relations that have the same endpoints
+    rel_sets = defaultdict(set)
+    for rel in gra.relations():
+        src, tgt = gra.links(rel)
+        # store together relations on the *unordered pair* (src, tgt) ;
+        # for each relation, we keep track of which element (src or tgt)
+        # comes first in the unordered pair
+        if src < tgt:
+            upair = tuple([src, tgt])
+            udir = 'src_tgt'
+        else:
+            upair = tuple([tgt, src])
+            udir = 'tgt_src'
+        rel_sets[upair].add((udir, rel))
+    # select sets for which pred is true
+    sel_sets = [rels for src_tgt, rels in rel_sets.items()
+                if pred(gra, contexts, rels)]
+    # generate one relation item for each relation instance in a selected
+    # set
+    res = [rel_link_item(doc, contexts, gra, x)
+           for sel_set in sel_sets
+           for udir, x in sel_set]
+    return res
 
 
 def search_graph_cdus(inputs, k, gra, pred):
@@ -140,6 +225,71 @@ def is_dupe_rel(gra, _, rel):
                if stac.is_relation_instance(gra.annotation(x)))
 
 
+# 2017-03-02 whitelisted pairs of relations
+def is_whitelisted_relpair(gra, _, relset):
+    """True if a pair of instance relations is in `PAIRS_WHITELIST`.
+
+    Parameters
+    ----------
+    gra : Graph
+        Graph for the discourse structure.
+
+    contexts : TODO
+        TODO
+
+    relset : set of relation instances
+        Set of relation instances on the same DUs ; each instance is a
+        pair (udir, rel), where:
+        udir is one of {'src_tgt', 'tgt_src'} and
+        rel is the identifier of a relation.
+
+    Returns
+    -------
+    res : boolean
+        True if relset is a pair of relation instances with the same
+        direction and the corresponding pair of relations is explicitly
+        allowed in the whitelist.
+    """
+    # we currently do not whitelist sets of more than two relation
+    # instances, plus they need to have the same direction
+    if ((len(relset) != 2 or
+         len(set(udir for udir, rel in relset)) != 1)):
+        return False
+    # PAIRS_WHITEDICT is symmetric:
+    # rel_a in PAIRS_WHITEDICT[rel_b] iff rel_b in PAIRS_WHITEDICT[rel_a]
+    rel_a, rel_b = list(gra.annotation(x).type for udir, x in relset)
+    return rel_a in PAIRS_WHITEDICT[rel_b]
+
+
+def is_bad_relset(gra, contexts, relset):
+    """True if a set of relation instances has more than one member
+    and it is not whitelisted.
+
+    Parameters
+    ----------
+    gra : Graph
+        Graph for the discourse structure.
+
+    contexts : TODO
+        TODO
+
+    relset : set of relation instances
+        Set of relation instances on the same DUs ; each instance is a
+        pair (udir, rel), where:
+        udir is one of {'src_tgt', 'tgt_src'} and
+        rel is the identifier of a relation.
+
+    Returns
+    -------
+    res : boolean
+        True if relset contains more than one element and
+        `is_whitelisted_relpair` returns False.
+    """
+    return (len(relset) > 1 and
+            not is_whitelisted_relpair(gra, contexts, relset))
+# end WIP whitelist
+
+
 def is_non2sided_rel(gra, _, rel):
     """
     Relation instance which does not have exactly a source and
@@ -152,18 +302,78 @@ def is_non2sided_rel(gra, _, rel):
             len(gra.links(rel)) != 2)
 
 
-def is_weird_qap(gra, _, rel):
-    """
-    Relation in a graph that represent a question answer pair
-    which either does not start with a question, or which ends
-    in a question
+def is_weird_qap(gra, contexts, rel):
+    """Return True if rel is a weird Question-Answer Pair relation.
+
+    Parameters
+    ----------
+    gra : TODO
+        Graph?
+
+    contexts  : TODO
+        Surrounding context
+
+    rel : TODO
+        Relation.
+
+    Returns
+    -------
+    res : boolean
+        True if rel is a relation that represents a question answer pair
+        which either does not start with a question, or which ends in a
+        question.
     """
     node1, node2 = gra.links(rel)
     is_qap = gra.annotation(rel).type == 'Question-answer_pair'
-    span1 = gra.annotation(node1).text_span()
-    span2 = gra.annotation(node2).text_span()
+    anno1 = gra.annotation(node1)
+    anno2 = gra.annotation(node2)
+    span1 = anno1.text_span()
+    span2 = anno2.text_span()
     final1 = gra.doc.text(span1)[-1]
     final2 = gra.doc.text(span2)[-1]
+
+    # 2017-03-30 trade offer
+    # don't raise warning for QAP where the first term is a trade offer
+    # with the bank or a port and the second is the Server message for
+    # its success ;
+    # we currently use a precise characterization of the messages
+    # involved so as to avoid unintentional captures
+    # DIRTY c/c of helpers from is_weird_ack ; a clean refactoring and
+    # redefinition of the graph API is much needed
+    def edu_speaker(anno):
+        "return the speaker for an EDU"
+        return contexts[anno].speaker() if anno in contexts else None
+
+    def node_speaker(anno):
+        "return the designated speaker for an EDU or CDU"
+        if stac.is_edu(anno):
+            return edu_speaker(anno)
+        elif stac.is_cdu(anno):
+            speakers = frozenset(edu_speaker(x) for x in anno.terminals())
+            if len(speakers) == 1:
+                return list(speakers)[0]
+            else:
+                return None
+        else:
+            return None
+    # end DIRTY
+
+    def is_trade_offer_bank_port(anno):
+        anno_text = gra.doc.text(anno.text_span())
+        return (node_speaker(anno) == 'UI' and
+                'made an offer to trade' in anno_text and
+                'from the bank or a port.' in anno_text)
+
+    def is_offer_bank_port_accepted(anno):
+        anno_text = gra.doc.text(anno.text_span())
+        return (node_speaker(anno) == 'Server' and
+                'traded' in anno_text and
+                ('from the bank.' in anno_text or
+                 'from a port.' in anno_text))
+
+    is_trade_offer_bank_port_qap = (is_trade_offer_bank_port(anno1) and
+                                    is_offer_bank_port_accepted(anno2))
+    # end trade offer
 
     def is_punc(char):
         "true if a char is a punctuation char"
@@ -171,7 +381,8 @@ def is_weird_qap(gra, _, rel):
 
     is_weird1 = is_punc(final1) and final1 != "?"
     is_weird2 = final2 == "?"
-    return is_qap and (is_weird1 or is_weird2)
+    return (is_qap and (is_weird1 or is_weird2) and
+            not is_trade_offer_bank_port_qap)
 
 
 def rfc_violations(inputs, k, gra):
@@ -240,10 +451,30 @@ def is_weird_ack(gra, contexts, rel):
 
 
 def dialogue_graphs(k, doc, contexts):
-    """
-    Return a dict from dialogue annotations to subgraphs
+    """Return a dict from dialogue annotations to subgraphs
     containing at least everything in that dialogue (and
-    perhaps some connected items)
+    perhaps some connected items).
+
+    Parameters
+    ----------
+    k : FileId
+        File identifier
+
+    doc : TODO
+        TODO
+
+    contexts : dict(Annotation, Context)
+        Context for each annotation.
+
+    Returns
+    -------
+    graphs : dict(Dialogue, Graph)
+        Graph for each dialogue.
+
+    Notes
+    -----
+    MM: I could not find any caller for this function in either educe or
+    irit-stac, as of 2017-03-17.
     """
     def in_dialogue(d_annos, anno):
         "if the given annotation is in the given dialogue"
@@ -267,17 +498,18 @@ def dialogue_graphs(k, doc, contexts):
 
 
 def is_disconnected(gra, contexts, node):
-    """
+    """Return True if an EDU is disconnected from a discourse structure.
+
     An EDU is considered disconnected unless:
 
     * it has an incoming link or
-    * it has an outgoing Conditional link
+    * it has an outgoing Conditional link or
     * it's at the beginning of a dialogue
 
     In principle we don't need to look at EDUs that are disconnected
-    on the outgoing end because (1) it's can be legitimate for
+    on the outgoing end because (1) it can be legitimate for
     non-dialogue-ending EDUs to not have outgoing links and (2) such
-    information would be redundant with the incoming anyway
+    information would be redundant with the incoming anyway.
     """
     def rel_type(rel):
         "relation type for a given link (string)"
@@ -299,6 +531,79 @@ def is_disconnected(gra, contexts, node):
                                      for r in rel_links)
         is_at_start = edu.text_span().char_start == first_turn_start
         return not (has_incoming or has_outgoing_whitelist or is_at_start)
+
+
+# 2017-03-17 check that each CDU has exactly one head DU
+# NB: quick and dirty implementation that probably needs a rewrite
+def are_single_headed_cdus(inputs, k, gra):
+    """Check that each CDU has exactly one head DU.
+
+    Parameters
+    ----------
+    gra : Graph
+        Graph for the discourse structure.
+
+    Returns
+    -------
+    report_items : list of ReportItem
+        List of report items, one per faulty CDU.
+    """
+    report_items = []
+    doc = inputs.corpus[k]
+    contexts = inputs.contexts[k]
+
+    # compute the transitive closure of DUs embedded under each CDU
+    # * map each CDU to its member EDUs and CDUs, as two lists
+    # keys are edge ids eg. 'e_pilot01_07_jhunter_1487683021582',
+    # values are node ids eg. 'n_pilot01_07_stac_1464335440'
+    cdu2mems = defaultdict(lambda: ([], []))
+    for cdu_id in gra.cdus():
+        cdu = gra.annotation(cdu_id)
+        cdu_members = set(gra.cdu_members(cdu_id))
+        cdu2mems[cdu_id] = (
+            [x for x in cdu_members if stac.is_edu(gra.annotation(x))],
+            [x for x in cdu_members if stac.is_cdu(gra.annotation(x))]
+        )
+    # * replace each nested CDU in the second list with its member DUs
+    # (to first list), and mark CDUs for exploration (to second list) ;
+    # repeat until fixpoint, ie. transitive closure complete for each CDU
+    while any(v[1] for k, v in cdu2mems.items()):
+        for cdu_id, (mem_edus, mem_cdus) in cdu2mems.items():
+            for mem_cdu in mem_cdus:
+                # switch between the edge and node representations of CDUs:
+                # gra.mirror()
+                nested_edus, nested_cdus = cdu2mems[gra.mirror(mem_cdu)]
+                # add the nested CDU and its EDU members
+                cdu2mems[cdu_id][0].append(mem_cdu)
+                cdu2mems[cdu_id][0].extend(nested_edus)
+                # store CDU members of the nested CDU for exploration
+                cdu2mems[cdu_id][1].extend(nested_cdus)
+                # delete current nested CDU from list of CDUs to be explored
+                cdu2mems[cdu_id][1].remove(mem_cdu)
+    # switch to simple dict, forget list of CDUs for exploration
+    cdu2mems = {k: v[0] for k, v in cdu2mems.items()}
+    # end transitive closure
+
+    for cdu_id in gra.cdus():
+        cdu = gra.annotation(cdu_id)
+        cdu_mems = set(gra.cdu_members(cdu_id))
+        cdu_rec_mems = set(cdu2mems[cdu_id])
+        internal_head = dict()
+        for cdu_mem in cdu_mems:
+            for rel in gra.links(cdu_mem):
+                if gra.is_relation(rel):
+                    src, tgt = gra.rel_links(rel)
+                    # src can be any DU under the current CDU, eg. even
+                    # a member of a nested CDU ; this is probably too
+                    # loose but we'll see later if we need to refine
+                    if src in cdu_rec_mems and tgt in cdu_mems:
+                        internal_head[tgt] = src
+        unheaded_mems = cdu_mems - set(internal_head.keys())
+        if len(unheaded_mems) > 1:
+            report_items.append(
+                SchemaItem(doc, contexts, cdu, []))
+    return report_items
+# end connectedness of CDU members
 
 # ---------------------------------------------------------------------
 # run
@@ -350,11 +655,35 @@ def run(inputs, k):
     squawk('EDU in more than one CDU',
            search_graph_cdu_overlap(inputs, k, graph))
 
+    # 2017-03-02 deprecate systematic errors for >1 relation instances
+    # on the same DU pair, in favor of: (a) warnings for whitelisted
+    # pairs, (b) errors for other configurations
+    # squawk('multiple relation instances between the same DU pair',
+    #        cand_dupes)
+    cand_dupes = search_graph_relations(inputs, k, graph, is_dupe_rel)
+    #
+    cand_dupes_bad = search_graph_relations_same_dus(
+        inputs, k, graph, is_bad_relset)
     squawk('multiple relation instances between the same DU pair',
-           search_graph_relations(inputs, k, graph, is_dupe_rel))
+           cand_dupes_bad)
+    # end WIP whitelist
 
     squawk('Speaker Acknowledgement to self',
            search_graph_relations(inputs, k, graph, is_weird_ack))
+
+    # 2017-03-02 emit a warning for instances of whitelisted pairs of
+    # relations
+    cand_dupes_good = search_graph_relations_same_dus(
+        inputs, k, graph, is_whitelisted_relpair)
+    quibble('whitelisted pairs of relation instances between the same DU pair',
+            cand_dupes_good,
+            noisy=True)
+    # check that we don't lose any relation (temporary assertion, should be
+    # removed once we are certain there is no hole in its two separate
+    # replacements)
+    assert (set(x.rel for x in cand_dupes) ==
+            set(x.rel for x in cand_dupes_bad + cand_dupes_good))
+    # end WIP whitelist
 
     quibble('weird QAP (non "? -> .")',
             search_graph_relations(inputs, k, graph, is_weird_qap))
@@ -382,3 +711,6 @@ def run(inputs, k):
     quibble('non dialogue-initial EDUs without incoming links',
             search_graph_edus(simplified_inputs, k,
                               simplified_graph, is_disconnected))
+
+    squawk('CDUs with more than one head',
+           are_single_headed_cdus(inputs, k, graph))
