@@ -9,6 +9,7 @@ evaluations, to avoid almost duplicates (as currently)
 """
 
 from __future__ import absolute_import, print_function
+import warnings
 
 import numpy as np
 
@@ -144,6 +145,98 @@ def parseval_scores(ctree_true, ctree_pred, subtree_filter=None,
             spans_true, spans_pred, labels=labels, average=average)
 
     return p, r, f1, s_true, s_pred, labels
+
+
+def parseval_compact_report(ctree_true, parser_preds,
+                            exclude_root=False, subtree_filter=None,
+                            lbl_fns=None, digits=4,
+                            print_support=True,
+                            per_doc=False,
+                            add_trivial_spans=False):
+    """Build a text report showing the F1-scores of the PARSEVAL metrics
+    for a list of parsers.
+
+    This is the simplest and most compact report we need to generate, it
+    corresponds to the comparative arrays of results from the literature.
+    Metrics are calculated globally (average='micro'), unless per_doc is
+    True (macro-averaging across documents).
+
+    Parameters
+    ----------
+    ctree_true: TODO
+        TODO
+
+    parser_preds: list of (parser_name, ctree_pred)
+        Predicted c-trees for each parser.
+
+    metric_types: list of strings, optional
+        Metrics that need to be included in the report ; if None is
+        given, defaults to ['S', 'N', 'R', 'F'].
+
+    digits: int, defaults to 4
+        Number of decimals to print.
+
+    span_sel: TODO
+        TODO
+
+    per_doc: boolean, defaults to False
+        If True, compute p, r, f for each doc separately then compute the
+        mean of each score over docs. This is *not* the correct
+        implementation, but it corresponds to that in DPLP.
+    """
+    if lbl_fns is None:
+        # we require a labelled span to be a pair (span, lbl)
+        # where span and lbl can be anything, for example
+        # * span = (span_beg, span_end)
+        # * lbl = (nuc, rel)
+        lbl_fns = [('Labelled Span', lambda span_lbl: span_lbl[1])]
+
+    metric_types = [k for k, v in lbl_fns]
+
+    # prepare scaffold for report
+    width = max(len(parser_name) for parser_name, _ in parser_preds)
+
+    headers = [x for x in metric_types]
+    if print_support:
+        headers += ["support"]
+    fmt = '%% %ds' % width  # first col: parser name
+    fmt += '  '
+    fmt += ' '.join(['% 9s' for _ in headers])
+    fmt += '\n'
+    headers = [""] + headers
+    report = fmt % tuple(headers)
+    report += '\n'
+
+    for parser_name, ctree_pred in parser_preds:
+        values = [parser_name]
+        # compute scores
+        metric_scores = dict()
+        for metric_type, lbl_fn in lbl_fns:
+            p, r, f1, s_true, s_pred, labels = parseval_scores(
+                ctree_true, ctree_pred, subtree_filter=subtree_filter,
+                exclude_root=exclude_root, lbl_fn=lbl_fn, labels=None,
+                average='micro', per_doc=per_doc,
+                add_trivial_spans=add_trivial_spans)
+            metric_scores[metric_type] = (p, r, f1, s_true, s_pred)
+
+        # fill report
+        support = 0
+        for metric_type in metric_types:
+            (p, r, f1, s_true, s_pred) = metric_scores[metric_type]
+            values += ["{0:0.{1}f}".format(f1, digits)]
+            # (warning) support in _true and _pred should be the same ;
+            if s_true != s_pred:
+                warnings.warn("s_pred != s_true")
+            # store support in _true, for optional display below
+            if support == 0:
+                support = s_true
+        # append support
+        if print_support:
+            values += ["{0}".format(support)]  # support_true
+
+        report += fmt % tuple(values)
+
+    return report
 
 
 def parseval_report(ctree_true, ctree_pred, exclude_root=False,
