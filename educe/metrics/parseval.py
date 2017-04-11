@@ -164,7 +164,7 @@ def parseval_report(ctree_true, ctree_pred, exclude_root=False,
         TODO
     metric_types: list of strings, optional
         Metrics that need to be included in the report ; if None is
-        given, defaults to ['S', 'S+N', 'S+R', 'S+N+R'].
+        given, defaults to ['S', 'N', 'R', 'F'].
     digits: int, defaults to 4
         Number of decimals to print.
     print_support_pred: boolean, defaults to True

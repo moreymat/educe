@@ -16,14 +16,14 @@ from educe.metrics.parseval import (parseval_scores, parseval_report,
 # label extraction functions
 LBL_FNS = [
     ('S', lambda span: 1),
-    ('S+N', lambda span: span[1]),
-    ('S+R', lambda span: span[2]),
-    ('S+N+R', lambda span: '{}-{}'.format(span[2], span[1])),
+    ('N', lambda span: span[1]),
+    ('R', lambda span: span[2]),
+    ('F', lambda span: '{}-{}'.format(span[2], span[1])),
     # WIP 2016-11-10 add head to evals
     ('S+H', lambda span: span[3]),
-    ('S+N+H', lambda span: '{}-{}'.format(span[1], span[3])),
-    ('S+R+H', lambda span: '{}-{}'.format(span[2], span[3])),
-    ('S+N+R+H', lambda span: '{}-{}'.format(span[2], span[1])),
+    ('N+H', lambda span: '{}-{}'.format(span[1], span[3])),
+    ('R+H', lambda span: '{}-{}'.format(span[2], span[3])),
+    ('F+H', lambda span: '{}-{}'.format(span[2], span[1])),
     # end WIP head
 ]
 
@@ -115,7 +115,7 @@ def rst_parseval_report(ctree_true, ctree_pred, ctree_type='RST',
 
     metric_types : list of strings, optional
         Metrics that need to be included in the report ; if None is
-        given, defaults to ['S', 'S+N', 'S+R', 'S+N+R'].
+        given, defaults to ['S', 'N', 'R', 'F'].
 
     digits : int, defaults to 4
         Number of decimals to print.
@@ -156,7 +156,7 @@ def rst_parseval_report(ctree_true, ctree_pred, ctree_type='RST',
 
     # select metrics and the corresponding functions
     if metric_types is None:
-        # metric_types = ['S', 'S+N', 'S+R', 'S+N+R']
+        # metric_types = ['S', 'N', 'R', 'F']
         metric_types = [x[0] for x in LBL_FNS]
     if set(metric_types) - set(x[0] for x in LBL_FNS):
         raise ValueError('Unknown metric types in {}'.format(metric_types))
@@ -173,7 +173,7 @@ def rst_parseval_report(ctree_true, ctree_pred, ctree_type='RST',
 
 
 def rst_parseval_detailed_report(ctree_true, ctree_pred, ctree_type='RST',
-                                 subtree_filter=None, metric_type='S+R',
+                                 subtree_filter=None, metric_type='R',
                                  labels=None, sort_by_support=True,
                                  digits=4, per_doc=False):
     """Build a text report showing the PARSEVAL discourse metrics per label.
@@ -203,7 +203,7 @@ def rst_parseval_detailed_report(ctree_true, ctree_pred, ctree_type='RST',
     subtree_filter: function, optional
         Function to filter all local trees.
 
-    metric_type : one of {'S+R', 'S+N+R'}, defaults to 'S+R'
+    metric_type : one of {'R', 'F'}, defaults to 'R'
         Metric that need to be included in the report.
 
     digits : int, defaults to 4
