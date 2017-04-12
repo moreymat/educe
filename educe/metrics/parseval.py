@@ -19,6 +19,7 @@ from educe.metrics.scores_structured import (precision_recall_fscore_support,
 
 def parseval_scores(ctree_true, ctree_pred, subtree_filter=None,
                     exclude_root=False, lbl_fn=None, labels=None,
+                    span_type='edus',
                     average=None, per_doc=False,
                     add_trivial_spans=False):
     """Compute PARSEVAL scores for ctree_pred wrt ctree_true.
@@ -80,10 +81,12 @@ def parseval_scores(ctree_true, ctree_pred, subtree_filter=None,
 
     # extract descriptions of spans from the true and pred trees
     spans_true = [ct.get_spans(subtree_filter=subtree_filter,
-                               exclude_root=exclude_root)
+                               exclude_root=exclude_root,
+                               span_type=span_type)
                   for ct in ctree_true]
     spans_pred = [ct.get_spans(subtree_filter=subtree_filter,
-                               exclude_root=exclude_root)
+                               exclude_root=exclude_root,
+                               span_type=span_type)
                   for ct in ctree_pred]
 
     # WIP replicate eval in Li et al.'s dep parser
@@ -149,7 +152,9 @@ def parseval_scores(ctree_true, ctree_pred, subtree_filter=None,
 
 def parseval_compact_report(ctree_true, parser_preds,
                             exclude_root=False, subtree_filter=None,
-                            lbl_fns=None, digits=4,
+                            lbl_fns=None,
+                            span_type='edus',
+                            digits=4,
                             print_support=True,
                             per_doc=False,
                             add_trivial_spans=False):
@@ -215,6 +220,7 @@ def parseval_compact_report(ctree_true, parser_preds,
             p, r, f1, s_true, s_pred, labels = parseval_scores(
                 ctree_true, ctree_pred, subtree_filter=subtree_filter,
                 exclude_root=exclude_root, lbl_fn=lbl_fn, labels=None,
+                span_type=span_type,
                 average='micro', per_doc=per_doc,
                 add_trivial_spans=add_trivial_spans)
             metric_scores[metric_type] = (p, r, f1, s_true, s_pred)
@@ -240,7 +246,8 @@ def parseval_compact_report(ctree_true, parser_preds,
 
 
 def parseval_report(ctree_true, ctree_pred, exclude_root=False,
-                    subtree_filter=None, lbl_fns=None, digits=4,
+                    subtree_filter=None, lbl_fns=None, span_type='edus',
+                    digits=4,
                     print_support_pred=True, per_doc=False,
                     add_trivial_spans=False):
     """Build a text report showing the PARSEVAL discourse metrics.
@@ -298,6 +305,7 @@ def parseval_report(ctree_true, ctree_pred, exclude_root=False,
         p, r, f1, s_true, s_pred, labels = parseval_scores(
             ctree_true, ctree_pred, subtree_filter=subtree_filter,
             exclude_root=exclude_root, lbl_fn=lbl_fn, labels=None,
+            span_type=span_type,
             average='micro', per_doc=per_doc,
             add_trivial_spans=add_trivial_spans)
         metric_scores[metric_type] = (p, r, f1, s_true, s_pred)
@@ -317,6 +325,7 @@ def parseval_report(ctree_true, ctree_pred, exclude_root=False,
 
 def parseval_detailed_report(ctree_true, ctree_pred, exclude_root=False,
                              subtree_filter=None, lbl_fn=None,
+                             span_type='edus',
                              labels=None, sort_by_support=True,
                              digits=4, per_doc=False):
     """Build a text report showing the PARSEVAL discourse metrics.
@@ -362,6 +371,7 @@ def parseval_detailed_report(ctree_true, ctree_pred, exclude_root=False,
     p, r, f1, s_true, s_pred, labels = parseval_scores(
         ctree_true, ctree_pred, subtree_filter=subtree_filter,
         exclude_root=exclude_root, lbl_fn=lbl_fn, labels=labels,
+        span_type=span_type,
         average=None, per_doc=per_doc)
 
     # scaffold for report

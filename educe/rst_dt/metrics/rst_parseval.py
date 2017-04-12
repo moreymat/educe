@@ -81,6 +81,7 @@ def rst_parseval_scores(ctree_true, ctree_pred, lbl_fn, subtree_filter=None,
 
 def rst_parseval_compact_report(ctree_true, parser_preds,
                                 ctree_type='RST', subtree_filter=None,
+                                span_type='edus',
                                 metric_types=None, digits=4,
                                 print_support=True,
                                 per_doc=False,
@@ -171,6 +172,7 @@ def rst_parseval_compact_report(ctree_true, parser_preds,
                                    exclude_root=exclude_root,
                                    subtree_filter=subtree_filter,
                                    lbl_fns=lbl_fns,
+                                   span_type=span_type,
                                    digits=digits,
                                    print_support=print_support,
                                    per_doc=per_doc,
@@ -179,6 +181,7 @@ def rst_parseval_compact_report(ctree_true, parser_preds,
 
 def rst_parseval_report(ctree_true, ctree_pred, ctree_type='RST',
                         subtree_filter=None, metric_types=None,
+                        span_type='edus',
                         digits=4, print_support_pred=True,
                         per_doc=False,
                         add_trivial_spans=False,
@@ -265,6 +268,7 @@ def rst_parseval_report(ctree_true, ctree_pred, ctree_type='RST',
 
     return parseval_report(ctree_true, ctree_pred, exclude_root=exclude_root,
                            subtree_filter=subtree_filter, lbl_fns=lbl_fns,
+                           span_type=span_type,
                            digits=digits,
                            print_support_pred=print_support_pred,
                            per_doc=per_doc,
@@ -272,7 +276,8 @@ def rst_parseval_report(ctree_true, ctree_pred, ctree_type='RST',
 
 
 def rst_parseval_detailed_report(ctree_true, ctree_pred, ctree_type='RST',
-                                 subtree_filter=None, metric_type='R',
+                                 subtree_filter=None, span_type='edus',
+                                 metric_type='R',
                                  labels=None, sort_by_support=True,
                                  digits=4, per_doc=False):
     """Build a text report showing the PARSEVAL discourse metrics per label.
@@ -338,6 +343,7 @@ def rst_parseval_detailed_report(ctree_true, ctree_pred, ctree_type='RST',
 
     return parseval_detailed_report(
         ctree_true, ctree_pred, exclude_root=exclude_root,
-        subtree_filter=subtree_filter, lbl_fn=lbl_fn,
+        subtree_filter=subtree_filter, span_type=span_type,
+        lbl_fn=lbl_fn,
         labels=labels, sort_by_support=sort_by_support,
         digits=digits, per_doc=per_doc)
