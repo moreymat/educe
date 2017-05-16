@@ -155,6 +155,7 @@ def parseval_compact_report(ctree_true, parser_preds,
                             lbl_fns=None,
                             span_type='edus',
                             digits=4,
+                            percent=False,
                             print_support=True,
                             per_doc=False,
                             add_trivial_spans=False):
@@ -212,6 +213,10 @@ def parseval_compact_report(ctree_true, parser_preds,
     report = fmt % tuple(headers)
     report += '\n'
 
+    # display percentages
+    if percent:
+        digits = digits - 2
+
     for parser_name, ctree_pred in parser_preds:
         values = [parser_name]
         # compute scores
@@ -229,7 +234,8 @@ def parseval_compact_report(ctree_true, parser_preds,
         support = 0
         for metric_type in metric_types:
             (p, r, f1, s_true, s_pred) = metric_scores[metric_type]
-            values += ["{0:0.{1}f}".format(f1, digits)]
+            values += ["{0:0.{1}f}".format(f1 * 100.0 if percent else f1,
+                                           digits)]
             # (warning) support in _true and _pred should be the same ;
             if s_true != s_pred:
                 warnings.warn("s_pred != s_true")
@@ -238,7 +244,7 @@ def parseval_compact_report(ctree_true, parser_preds,
                 support = s_true
         # append support
         if print_support:
-            values += ["{0}".format(support)]  # support_true
+            values += ["{0:.0f}".format(support)]  # support_true
 
         report += fmt % tuple(values)
 
@@ -247,7 +253,7 @@ def parseval_compact_report(ctree_true, parser_preds,
 
 def parseval_report(ctree_true, ctree_pred, exclude_root=False,
                     subtree_filter=None, lbl_fns=None, span_type='edus',
-                    digits=4,
+                    digits=4, percent=False,
                     print_support_pred=True, per_doc=False,
                     add_trivial_spans=False):
     """Build a text report showing the PARSEVAL discourse metrics.
@@ -299,6 +305,10 @@ def parseval_report(ctree_true, ctree_pred, exclude_root=False,
     report = fmt % tuple(headers)
     report += '\n'
 
+    # display percentages
+    if percent:
+        digits = digits - 2
+
     # compute scores
     metric_scores = dict()
     for metric_type, lbl_fn in lbl_fns:
@@ -311,11 +321,14 @@ def parseval_report(ctree_true, ctree_pred, exclude_root=False,
         metric_scores[metric_type] = (p, r, f1, s_true, s_pred)
 
     # fill report
+    if percent:
+        digits = digits - 2
     for metric_type in metric_types:
         (p, r, f1, s_true, s_pred) = metric_scores[metric_type]
         values = [metric_type]
         for v in (p, r, f1):
-            values += ["{0:0.{1}f}".format(v, digits)]
+            values += ["{0:0.{1}f}".format(v * 100.0 if percent else v,
+                                           digits)]
         values += ["{0}".format(s_true)]  # support_true
         values += ["{0}".format(s_pred)]  # support_pred
         report += fmt % tuple(values)
@@ -327,7 +340,7 @@ def parseval_detailed_report(ctree_true, ctree_pred, exclude_root=False,
                              subtree_filter=None, lbl_fn=None,
                              span_type='edus',
                              labels=None, sort_by_support=True,
-                             digits=4, per_doc=False):
+                             digits=4, percent=False, per_doc=False):
     """Build a text report showing the PARSEVAL discourse metrics.
 
     FIXME model after sklearn.metrics.classification.classification_report
@@ -395,11 +408,15 @@ def parseval_detailed_report(ctree_true, ctree_pred, exclude_root=False,
     if sort_by_support:
         sorted_ilbls = sorted(sorted_ilbls, key=lambda x: s_true[x[0]],
                               reverse=True)
+    # display percentages
+    if percent:
+        digits = digits - 2
     # one line per label
     for i, label in sorted_ilbls:
         values = [label]
         for v in (p[i], r[i], f1[i]):
-            values += ["{0:0.{1}f}".format(v, digits)]
+            values += ["{0:0.{1}f}".format(v * 100.0 if percent else v,
+                                           digits)]
         values += ["{0}".format(s_true[i])]
         values += ["{0}".format(s_pred[i])]
         report += fmt % tuple(values)
@@ -411,7 +428,8 @@ def parseval_detailed_report(ctree_true, ctree_pred, exclude_root=False,
     for v in (np.average(p, weights=s_true),
               np.average(r, weights=s_true),
               np.average(f1, weights=s_true)):
-        values += ["{0:0.{1}f}".format(v, digits)]
+        values += ["{0:0.{1}f}".format(v * 100.0 if percent else v,
+                                       digits)]
     values += ['{0}'.format(np.sum(s_true))]
     values += ['{0}'.format(np.sum(s_pred))]
     report += fmt % tuple(values)
