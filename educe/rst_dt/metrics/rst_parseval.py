@@ -79,7 +79,7 @@ def rst_parseval_scores(ctree_true, ctree_pred, lbl_fn, subtree_filter=None,
                            labels=labels, average=average)
 
 
-def rst_parseval_compact_report(ctree_true, parser_preds,
+def rst_parseval_compact_report(parser_true, parser_preds,
                                 ctree_type='RST', subtree_filter=None,
                                 span_type='edus',
                                 metric_types=None, digits=4,
@@ -169,7 +169,7 @@ def rst_parseval_compact_report(ctree_true, parser_preds,
     lbl_fns = [(metric_type, metric2lbl_fn[metric_type])
                for metric_type in metric_types]
 
-    return parseval_compact_report(ctree_true, parser_preds,
+    return parseval_compact_report(parser_true, parser_preds,
                                    exclude_root=exclude_root,
                                    subtree_filter=subtree_filter,
                                    lbl_fns=lbl_fns,

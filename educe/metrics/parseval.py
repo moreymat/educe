@@ -150,7 +150,7 @@ def parseval_scores(ctree_true, ctree_pred, subtree_filter=None,
     return p, r, f1, s_true, s_pred, labels
 
 
-def parseval_compact_report(ctree_true, parser_preds,
+def parseval_compact_report(parser_true, parser_preds,
                             exclude_root=False, subtree_filter=None,
                             lbl_fns=None,
                             span_type='edus',
@@ -169,8 +169,9 @@ def parseval_compact_report(ctree_true, parser_preds,
 
     Parameters
     ----------
-    ctree_true: TODO
-        TODO
+    parser_true: str
+        Name of the parser used as reference ; it needs to be in the
+        keys of parser_preds.
 
     parser_preds: list of (parser_name, ctree_pred)
         Predicted c-trees for each parser.
@@ -216,6 +217,14 @@ def parseval_compact_report(ctree_true, parser_preds,
     # display percentages
     if percent:
         digits = digits - 2
+
+    # find _true
+    for parser_name, ctree_pred in parser_preds:
+        if parser_name == parser_true:
+            ctree_true = ctree_pred
+            break
+    else:
+        raise ValueError('Unable to find reference c-trees')
 
     for parser_name, ctree_pred in parser_preds:
         values = [parser_name]
