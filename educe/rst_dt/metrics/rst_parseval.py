@@ -97,8 +97,8 @@ def rst_parseval_compact_report(parser_true, parser_preds,
 
     Parameters
     ----------
-    ctree_true: TODO
-        TODO
+    parser_true: str
+        Name of the parser used as a ref.
 
     parser_preds: List of (parser_name, List of ctree_pred)
         List of predictions for each parser.
