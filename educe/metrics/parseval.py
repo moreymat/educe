@@ -260,6 +260,139 @@ def parseval_compact_report(parser_true, parser_preds,
     return report
 
 
+def parseval_similarity(parser_preds,
+                        exclude_root=False, subtree_filter=None,
+                        lbl_fn=None,
+                        span_type='edus',
+                        digits=4,
+                        percent=False,
+                        print_support=True,
+                        per_doc=False,
+                        add_trivial_spans=False,
+                        out_format='str'):
+    """Build a similarity matrix showing the F1-scores of a PARSEVAL metric
+    for a list of parsers.
+
+    Metrics are calculated globally (average='micro'), unless per_doc is
+    True (macro-averaging across documents).
+
+    Parameters
+    ----------
+    parser_preds : list of (parser_name, ctree_pred)
+        Predicted c-trees for each parser.
+
+    exclude_root : TODO
+        TODO
+
+    subtree_filter : TODO
+        TODO
+
+    lbl_fn : (str, function)
+        Metric on which the similarity is computed.
+
+    span_type : TODO
+        TODO
+
+    digits : int, defaults to 4
+        Number of decimals to print.
+
+    percent : TODO
+        TODO
+
+    print_support : TODO
+        TODO
+
+    per_doc : boolean, defaults to False
+        If True, compute p, r, f for each doc separately then compute the
+        mean of each score over docs. This is *not* the correct
+        implementation, but it corresponds to that in DPLP.
+
+    add_trivial_spans : TODO
+        TODO
+
+    out_format : str, one of {'str', 'latex'}
+        Output format.
+    """
+    if lbl_fn is None:
+        # we require a labelled span to be a pair (span, lbl)
+        # where span and lbl can be anything, for example
+        # * span = (span_beg, span_end)
+        # * lbl = (nuc, rel)
+        lbl_fn = ('Labelled Span', lambda span_lbl: span_lbl[1])
+
+    metric_type = lbl_fn[0]
+
+    # prepare scaffold for report
+    width = max(len(parser_name) for parser_name, _ in parser_preds)
+    headers = [k[:7] for k, v in parser_preds]
+    if print_support:
+        headers += ["support"]
+    fmt = '%% %ds' % width  # first col: parser name
+    if out_format == 'str':
+        fmt += '  '
+        fmt += ' '.join(['% 9s' for _ in headers])
+    elif out_format == 'latex':
+        fmt += ' &'
+        fmt += '&'.join(['% 9s' for _ in headers])
+        fmt += '\\\\'  # print "\\"
+    else:
+        raise ValueError("Unknown value for out_format: {}".format(
+            out_format))
+    fmt += '\n'
+    headers = [""] + headers
+
+    report = ""
+    if out_format == 'latex':
+        report += '\n'.join([
+            '\\begin{table}[h]',
+            '\\begin{center}',
+            '\\begin{tabular}{' + 'l' * len(headers) +'}',
+            '\\toprule'
+        ])
+    report += fmt % tuple(headers)
+    report += '\n'
+    if out_format == 'latex':
+        report += '\\midrule\n'
+
+    # display percentages
+    if percent:
+        digits = digits - 2
+
+    for parser_true, ctree_true in parser_preds:
+        values = [parser_true]
+        for parser_name, ctree_pred in parser_preds:
+            # compute scores
+            p, r, f1, s_true, s_pred, labels = parseval_scores(
+                ctree_true, ctree_pred, subtree_filter=subtree_filter,
+                exclude_root=exclude_root, lbl_fn=lbl_fn[1], labels=None,
+                span_type=span_type,
+                average='micro', per_doc=per_doc,
+                add_trivial_spans=add_trivial_spans)
+            # fill report
+            values += ["{0:0.{1}f}".format(f1 * 100.0 if percent else f1,
+                                           digits)]
+            # store support in _true, for optional display below
+            support = s_true
+
+        # append support
+        if print_support:
+            values += ["{0:.0f}".format(support)]  # support_true
+
+        report += fmt % tuple(values)
+
+    if out_format == 'latex':
+        report += '\n'.join([
+            '\\bottomrule',
+            '\\end{tabular}',
+            '\\end{center}',
+            '\\caption{\\label{ctree-sim} Similarity matrix on parsers predictions against non-binarized trees.}',
+            '\\end{table}'
+        ])
+        report = report.replace('_', '\_')
+
+    return report
+
+
 def parseval_report(ctree_true, ctree_pred, exclude_root=False,
                     subtree_filter=None, lbl_fns=None, span_type='edus',
                     digits=4, percent=False,

@@ -11,7 +11,8 @@ from __future__ import absolute_import, print_function
 
 from educe.metrics.parseval import (parseval_scores, parseval_report,
                                     parseval_compact_report,
-                                    parseval_detailed_report)
+                                    parseval_detailed_report,
+                                    parseval_similarity)
 
 
 # label extraction functions
@@ -179,6 +180,107 @@ def rst_parseval_compact_report(parser_true, parser_preds,
                                    print_support=print_support,
                                    per_doc=per_doc,
                                    add_trivial_spans=add_trivial_spans)
+
+
+def rst_parseval_similarity(parser_preds,
+                            ctree_type='RST',
+                            subtree_filter=None,
+                            span_type='edus',
+                            metric_type='S', digits=4,
+                            percent=False,
+                            print_support=True,
+                            per_doc=False,
+                            add_trivial_spans=False,
+                            stringent=False,
+                            out_format='str'):
+    """Build a similarity matrix showing the f1-scores of a PARSEVAL
+    discourse metric.
+
+    This is the simplest report we need to generate, it corresponds
+    to the arrays of results from the literature.
+    Metrics are calculated globally (average='micro').
+
+    Parameters
+    ----------
+    parser_preds : List of (parser_name, List of ctree_pred)
+        List of predictions for each parser.
+
+    ctree_type : one of {'RST', 'SimpleRST'}, defaults to 'RST'
+        Type of ctrees considered in the evaluation procedure.
+        'RST' is the standard type of ctrees used in the RST corpus,
+        it triggers the exclusion of the root node from the evaluation
+        but leaves are kept.
+        'SimpleRST' is a binarized variant of RST trees where each
+        internal node corresponds to an attachment decision ; in other
+        words, it is a binary ctree where the nuclearity and relation label
+        are moved one node up compared to the standard RST trees. This
+        triggers the exclusion of leaves from the eval, but the root node
+        is kept.
+
+    subtree_filter : function, optional
+        Function to filter all local trees.
+
+    metric_type : str
+        Metric on which similarity is judged, defaults to 'S'.
+
+    digits : int, defaults to 4
+        Number of decimals to print.
+
+    print_support : boolean, defaults to True
+        If True, the true support, i.e. the number of reference spans,
+        is also displayed. This is useful to control whether the
+        reference ctrees have been binarized.
+
+    per_doc : boolean, defaults to False
+        If True, compute p, r, f for each doc separately then compute the
+        mean of each score over docs. This is *not* the correct
+        implementation, but it corresponds to that in DPLP.
+
+    add_trivial_spans : boolean, defaults to False
+        If True, trivial spans 0-0, 0-n, 1-n are added ; this is meant to
+        replicate the evaluation procedure of Li et al.'s dependency RST
+        parser.
+
+    stringent : boolean, defaults to False
+        TODO
+
+    out_format : str, one of {'str', 'latex'}
+        Output format.
+    """
+    # filter root or leaves, depending on the type of ctree
+    if ctree_type not in ['RST', 'SimpleRST']:
+        raise ValueError("ctree_type should be one of {'RST', 'SimpleRST'}")
+    if ctree_type == 'RST':
+        # standard RST ctree: exclude root
+        exclude_root = True
+        subtree_filter = subtree_filter
+    elif ctree_type == 'SimpleRST':
+        # SimpleRST variant: keep root, exclude leaves
+        exclude_root = False  # TODO try True first, should get same as before
+        not_leaf = lambda t: t.height() > 2  # TODO unit test!
+        if subtree_filter is None:
+            subtree_filter = not_leaf
+        else:
+            subtree_filter = lambda t: not_leaf(t) and subtree_filter(t)
+
+    # select metrics and the corresponding functions
+    metric_types = ['S', 'N', 'R', 'F']
+    if metric_type not in metric_types:
+        raise ValueError("metric_type must be one of {}".format(metric_types))
+    metric2lbl_fn = dict(LBL_FNS)
+    lbl_fn = (metric_type, metric2lbl_fn[metric_type])
+
+    return parseval_similarity(parser_preds,
+                               exclude_root=exclude_root,
+                               subtree_filter=subtree_filter,
+                               lbl_fn=lbl_fn,
+                               span_type=span_type,
+                               digits=digits,
+                               percent=percent,
+                               print_support=print_support,
+                               per_doc=per_doc,
+                               add_trivial_spans=add_trivial_spans,
+                               out_format=out_format)
 
 
 def rst_parseval_report(ctree_true, ctree_pred, ctree_type='RST',
