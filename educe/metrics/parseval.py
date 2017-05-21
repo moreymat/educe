@@ -389,7 +389,7 @@ def parseval_similarity(parser_preds,
             '\\caption{\\label{ctree-sim} Similarity matrix on parsers predictions against non-binarized trees.}',
             '\\end{table}'
         ])
-        report = report.replace('_', '\_')
+    report = report.replace('_', ' ')
 
     return report
 
