@@ -347,7 +347,8 @@ def parseval_similarity(parser_preds,
             '\\begin{table}[h]',
             '\\begin{center}',
             '\\begin{tabular}{' + 'l' * len(headers) +'}',
-            '\\toprule'
+            '\\toprule',
+            ''
         ])
     report += fmt % tuple(headers)
     report += '\n'
