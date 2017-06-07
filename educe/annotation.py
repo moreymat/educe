@@ -249,7 +249,7 @@ class Standoff(object):
         if my_members is None:
             return [self]
         seen = seen or []
-        return chain.from_iterable([m._terminals(seen + my_members)
+        return chain.from_iterable([m._terminals(seen=seen + my_members)
                                     for m in my_members if m not in seen])
 
     def text_span(self):
