@@ -72,21 +72,6 @@ class DialogueActVectorizer(object):
 class LabelVectorizer(object):
     """Label extractor for the STAC corpus.
 
-    Parameters
-    ----------
-    instance_generator : fun(doc) -> :obj:`list` of (EDU, EDU)
-        Function to enumerate the candidate instances from a doc.
-
-    labels : :obj:`list` of str
-        Set of domain labels. If it is provided as a sequence, the
-        order of labels is preserved ; otherwise its elements are
-        sorted before storage. This guarantees a stable behaviour
-        across runs and platforms, which greatly facilitates
-        the comparability of models and results.
-
-    zero : boolean, defaults to False
-        If True, transform() will return the unknown label (UNK) for
-        all (MM or only unrelated?) pairs.
 
     Attributes
     ----------
@@ -96,6 +81,24 @@ class LabelVectorizer(object):
     """
 
     def __init__(self, instance_generator, labels, zero=False):
+        """
+
+        Parameters
+        ----------
+        instance_generator : fun(doc) -> :obj:`list` of (EDU, EDU)
+            Function to enumerate the candidate instances from a doc.
+
+        labels : :obj:`list` of str
+            Set of domain labels. If it is provided as a sequence, the
+            order of labels is preserved ; otherwise its elements are
+            sorted before storage. This guarantees a stable behaviour
+            across runs and platforms, which greatly facilitates
+            the comparability of models and results.
+
+        zero : boolean, defaults to False
+            If True, transform() will return the unknown label (UNK) for
+            all (MM or only unrelated?) pairs.
+        """
         self.instance_generator = instance_generator
         if not isinstance(labels, Sequence):
             labels = sorted(labels)

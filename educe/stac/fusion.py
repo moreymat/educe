@@ -41,24 +41,23 @@ ROOT = 'ROOT'
 
 
 class Dialogue(object):
-    """STAC Dialogue
+    """STAC Dialogue.
 
     Note that input EDUs should be sorted by span.
 
-    Parameters
-    ----------
-    anno : educe.stac.annotation.Unit
-        Glozz annotation corresponding to the dialogue ; only its
-        identifier is stored, currently.
-
-    edus : list(educe.stac.annotation.Unit)
-        List of EDU annotations, sorted by their span.
-
-    relations : list(educe.stac.annotation.Relation
-        List of relations between EDUs from the dialogue.
-
     """
     def __init__(self, anno, edus, relations):
+        """
+        Parameters
+        ----------
+        anno : educe.stac.annotation.Unit
+            Glozz annotation corresponding to the dialogue ; only its
+            identifier is stored, currently.
+        edus : list of educe.stac.annotation.Unit
+            List of EDU annotations, sorted by their span.
+        relations : list of educe.stac.annotation.Relation
+            List of relations between EDUs from the dialogue.
+        """
         self.grouping = anno.identifier()
         self.edus = [FakeRootEDU] + edus
         self.relations = relations
@@ -74,7 +73,7 @@ class Dialogue(object):
 
         Yields
         ------
-        (source, target) : tuple(educe.stac.annotation.Unit)
+        (source, target) : tuple of educe.stac.annotation.Unit
             Next candidate edge, as a pair of EDUs (source, target).
         """
         i_edus = list(enumerate(self.edus))
@@ -83,7 +82,6 @@ class Dialogue(object):
         for _, edu in i_edus:
             yield (fakeroot, edu)
         # generate all pairs of (real) EDUs
-        # real_pairs = []  # DEBUG
         for num1, edu1 in i_edus:
             def is_before(numedu2):
                 'true if we have seen the EDU already'
@@ -94,16 +92,6 @@ class Dialogue(object):
             for _, edu2 in itertools.dropwhile(is_before, i_edus):
                 yield (edu1, edu2)
                 yield (edu2, edu1)
-                # DEBUG
-                # real_pairs.append((edu1, edu2))
-                # real_pairs.append((edu2, edu1))
-                # end DEBUG
-        # DEBUG compare list of EDU pairs from the above loop with a
-        # one-liner
-        # real_pairs_itr = sorted(itertools.permutations(self.edus[1:]))
-        # assert real_pairs_itr != sorted(real_pairs)
-        # raise ValueError("woooop")
-        # end DEBUG
 
 
 # pylint: disable=too-many-instance-attributes
@@ -119,6 +107,16 @@ class EDU(Unit):
     annotations and contexts
     """
     def __init__(self, doc, discourse_anno, unit_anno):
+        """
+        Parameters
+        ----------
+        doc : ?
+            ?
+        discourse_anno : ?
+            Annotation from the discourse layer.
+        unit_anno : ?
+            Annotation from the units layer.
+        """
         self._doc = doc
         self._anno = discourse_anno
         self._unit_anno = unit_anno
@@ -274,10 +272,8 @@ def fuse_edus(discourse_doc, unit_doc, postags):
     ----------
     discourse_doc : GlozzDocument
         Document from the "discourse" stage.
-
     unit_doc : GlozzDocument
         Document from the "units" stage.
-
     postags : list of Token
         Sequence of educe tokens predicted by the POS tagger for this
         document.

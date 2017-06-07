@@ -96,12 +96,12 @@ def load_pdtb_markers_lexicon(filename):
 
     Parameters
     ----------
-    filename: string
-        Path to the lexicon
+    filename : str
+        Path to the lexicon.
 
     Returns
     -------
-    markers: dict(Marker, list(string))
+    markers : dict(Marker, list(string))
         Discourse markers and the relations they signal
     """
     blacklist = frozenset(['\\wedge'])
@@ -141,7 +141,7 @@ def read_lexicon(filename):
 
     Parameters
     ----------
-    filename : string
+    filename : str
         Path to the lexicon.
 
     Returns

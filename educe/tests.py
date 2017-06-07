@@ -342,7 +342,7 @@ class BasicGraphTest(unittest.TestCase):
         # including CDU should also result in members being included
         xset4 = set(['X2'])
         gr4 = gr.copy(nodeset=xset4)
-        self.assertEqual(xset2,             gr4.edus())
+        self.assertEqual(xset2, gr4.edus())
         self.assertEqual(set(['X1', 'X2']), gr4.cdus())
 
 

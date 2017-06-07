@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Api on discourse markers (lexicon I/O mostly)
+API on discourse markers (lexicon I/O mostly)
 """
 try:
     import xml.etree.cElementTree as ET
@@ -28,13 +28,13 @@ class Marker:
     version 2 has grammatical host and lemma
     """
     def __init__(self, elmt, version="2", stop=_stopwords):
-        self._forms = [x.text.strip()
-                       for x in elmt.findall(".//%s" % _table[version]["form"])]
+        self._forms = [x.text.strip() for x in elmt.findall(
+            ".//%s" % _table[version]["form"])]
         self.__dict__.update(elmt.attrib)
         #
         if version == "2":
-            self.relations = [x.attrib["relation"]
-                              for x in elmt.findall(".//use")]
+            self.relations = [x.attrib["relation"] for x in elmt.findall(
+                ".//use")]
         else:
             self.relations = [x.strip() for x in self.relations.split(",")]
             self.lemma = self.forms[0]
@@ -56,8 +56,8 @@ class LexConn:
         """read lexconn file, version is 1 or 2
         """
         lex = ET.parse(infile)
-        markers = [Marker(x, version=version)
-                   for x in lex.findall(".//%s" % _table[version]["marker"])]
+        markers = [Marker(x, version=version) for x in lex.findall(
+            ".//%s" % _table[version]["marker"])]
         markers = [x for x in markers if x.get_lemma() not in stop]
         self._markers = dict([(x.id, x) for x in markers])
 
@@ -76,5 +76,7 @@ class LexConn:
 
 # tests
 if __name__ == "__main__":
+    import sys
+
     infile = sys.argv[1]
     lex = LexConn(infile, version=sys.argv[2])

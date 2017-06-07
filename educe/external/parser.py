@@ -134,15 +134,15 @@ class ConstituencyTree(SearchableTree, Standoff):
         ----------
         tree : nltk.Tree
             Original NLTK tree.
-        tokens : iterable
-            List of replacement leaves.
+        tokens : iterable of Token
+            Sequence of replacement leaves.
 
         Returns
         -------
         ctree : ConstituencyTree
             ConstituencyTree where the internal nodes have the same
             labels as in the original NLTK tree and the leaves
-            correspond to the given list of tokens.
+            correspond to the given sequence of tokens.
         """
         toks = deque(tokens)
 

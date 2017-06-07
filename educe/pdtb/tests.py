@@ -88,7 +88,8 @@ class PdtbParseTest(unittest.TestCase):
         parser = p._lines([char("a"), char("b"), char("c")]) >> p._mkstr
         self.assertParse(parser, expected, txt)
 
-        parser = p._lines([char("a"), char("b"), p._OptionalBlock(char("c"))]) >> p._mkstr
+        parser = p._lines(
+            [char("a"), char("b"), p._OptionalBlock(char("c"))]) >> p._mkstr
         self.assertParse(parser, expected, txt)
 
     def test_tok(self):
@@ -177,8 +178,8 @@ class PdtbParseTest(unittest.TestCase):
         self.assertParse(p._semanticClass, expected, txt)
 
     def test_connective(self):
-        expected = p.Connective('also', p.SemClass(['Expansion',
-                                                    'Conjunction']))
+        expected = p.Connective(
+            'also', p.SemClass(['Expansion', 'Conjunction']))
         txt = 'also, Expansion.Conjunction'
         self.assertParse(p._conn1SemanticClass, expected, txt)
         self.assertParse(p._conn2SemanticClass, expected, txt)
@@ -193,25 +194,22 @@ class PdtbParseTest(unittest.TestCase):
 
     def test_implicit_features_1(self):
         expected_attr = p.Attribution('Wr', 'Comm', 'Null', 'Null')
-        expected_conn = p.Connective('also', p.SemClass(['Expansion',
-                                                         'Conjunction']))
-        expected = p.ImplicitRelationFeatures(expected_attr, expected_conn,
-                                              None)
+        expected_conn = p.Connective(
+            'also', p.SemClass(['Expansion', 'Conjunction']))
+        expected = p.ImplicitRelationFeatures(
+            expected_attr, expected_conn, None)
         txt = ex_implicit_attribution
         self.assertParse(p._implicitRelationFeatures, expected, txt)
 
     def test_implicit_features_2(self):
-        expected_conn1 = p.Connective('in particular',
-                                      p.SemClass(['Expansion',
-                                                  'Restatement',
-                                                  'Specification']))
-        expected_conn2 = p.Connective('because',
-                                      p.SemClass(['Contingency',
-                                                  'Cause',
-                                                  'Reason']))
+        expected_conn1 = p.Connective(
+            'in particular', p.SemClass(['Expansion', 'Restatement',
+                                         'Specification']))
+        expected_conn2 = p.Connective(
+            'because', p.SemClass(['Contingency', 'Cause', 'Reason']))
         expected_attr = p.Attribution('Wr', 'Comm', 'Null', 'Null')
-        expected = p.ImplicitRelationFeatures(expected_attr, expected_conn1,
-                                              expected_conn2)
+        expected = p.ImplicitRelationFeatures(
+            expected_attr, expected_conn1, expected_conn2)
         txt = ex_implicit_features
         self.assertParse(p._implicitRelationFeatures, expected, txt)
 

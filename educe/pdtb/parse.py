@@ -177,16 +177,18 @@ class Arg(Selection):
 
     def _substr(self):
         sup_str = ' + %s' % self.sup if self.sup else ''
-        return '%s | %s%s' % (Selection._substr(self), self.attribution,
-                              sup_str)
+        return '%s | %s%s' % (
+            Selection._substr(self), self.attribution, sup_str)
 
 
 class Relation(PdtbItem):
     """
-    Fields:
-
-        * self.arg1
-        * self.arg2
+    Attributes
+    ----------
+    arg1 : TODO
+        TODO
+    arg2 : TODO
+        TODO
     """
     def __init__(self, args):
         if len(args) == 4:
@@ -293,10 +295,11 @@ class NoRelation(InferenceSite, Relation):
     def _substr(self):
         return Relation._substr(self)
 
+
 # ---------------------------------------------------------------------
 # not-quite-lexing
 # ---------------------------------------------------------------------
-
+#
 # FIXME
 # funcparserlib works on a stream of arbitrary tokens, eg. the output of
 # a lexer. At the time of this writing, I didn't trust any of the fancy
@@ -306,8 +309,7 @@ class NoRelation(InferenceSite, Relation):
 # the raw text bits eg. `r'#### Text ####\n(.*?)\n##############'`; and
 # provide some abstractions over tokens, we could maybe simplify the
 # parser a lot... which could in turn make it faster?
-
-
+#
 class _Char(object):
     def __init__(self, value, abspos, line, relpos):
         self.value = value
@@ -490,6 +492,7 @@ def _noise(xs):
     _helper.name = u'{ literal %s }' % xs
     return _helper
 
+
 if _DEBUG:
     _annotate = _annotate_debug
     _mkstr = _mkstr_debug
@@ -503,7 +506,8 @@ else:
 # ---------------------------------------------------------------------
 # elementary parts
 # ---------------------------------------------------------------------
-_nat = fp.oneplus(_satisfies(lambda c: c.isdigit())) >> (lambda x: int(_mkstr(x)))
+_nat = fp.oneplus(_satisfies(lambda c: c.isdigit())) >> (
+    lambda x: int(_mkstr(x)))
 _nl = fp.skip(_oneof("\r\n"))
 _comma = fp.skip(_oneof(","))
 _semicolon = fp.skip(_oneof(";"))
@@ -618,8 +622,8 @@ _SemanticClassWord = _many_char(lambda x: x in [' ', '-'] or x.isalnum())
 _SemanticClassN = _sepby(_fullstop, _SemanticClassWord) >> SemClass
 _SemanticClass1 = _SemanticClassN
 _SemanticClass2 = _SemanticClassN
-_semanticClass = _SemanticClass1 + fp.maybe(
-    _sp + _comma + _sp + _SemanticClass2)
+_semanticClass = _SemanticClass1 + fp.maybe(_sp + _comma + _sp +
+                                            _SemanticClass2)
 
 # always followed by a comma (yeah, a bit clunky)
 _ConnHead = _skipto_mkstr(_comma)
@@ -631,9 +635,12 @@ def _mkConnective(c, semclasses):
     return Connective(c, *semclasses)
 
 
-_connHeadSemanticClass = _ConnHead + _sp + _semanticClass >> _unarg(_mkConnective)
-_conn1SemanticClass = _Conn1 + _sp + _semanticClass >> _unarg(_mkConnective)
-_conn2SemanticClass = _Conn2 + _sp + _semanticClass >> _unarg(_mkConnective)
+_connHeadSemanticClass = _ConnHead + _sp + _semanticClass >> _unarg(
+    _mkConnective)
+_conn1SemanticClass = _Conn1 + _sp + _semanticClass >> _unarg(
+    _mkConnective)
+_conn2SemanticClass = _Conn2 + _sp + _semanticClass >> _unarg(
+    _mkConnective)
 
 
 # ---------------------------------------------------------------------
@@ -673,6 +680,7 @@ def _mk_args_and_sups():
     with_sup1 = _lines([_sup('sup1')] + rest) >> tuple
     sans_sup1 = _lines(rest) >> (lambda xs: tuple([None] + list(xs)))
     return with_sup1 | sans_sup1  # yuck :-(
+
 
 _args_and_sups = _mk_args_and_sups()
 _args_only =\
@@ -796,8 +804,8 @@ def parse(path):
 
     Parameters
     ----------
-    path : string
-        Path to the .pdtb file
+    path : str
+        Path to the .pdtb file (?)
 
     Returns
     -------

@@ -180,19 +180,17 @@ def token_spans(text, tokens, offset=0):
 
     Parameters
     ----------
-    text : string
+    text : str
         Base text.
-
     tokens : sequence of RawToken
         Sequence of raw tokens in the text.
-
     offset : int, defaults to 0
         Offset for spans.
 
     Returns
     -------
     res : list of Token
-        Sequence of proper educe `Token`s with their span.
+        Sequence of proper educe Tokens with their span.
     """
     token_words = [tok.word for tok in tokens]
     spans = generic_token_spans(text, token_words, offset)

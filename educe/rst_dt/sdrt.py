@@ -23,7 +23,8 @@ class CDU:
     """Complex Discourse Unit.
 
     A CDU contains one or more discourse units, and tracks relation
-    instances between its members. Both CDU and EDU are discourse units.
+    instances between its members.
+    Both CDU and EDU are discourse units.
 
     Attributes
     ----------
@@ -194,8 +195,8 @@ def rst_to_sdrt(tree):
         nuclei = [x for x in tree if x.label().is_nucleus()]
         satellites = [x for x in tree if x.label().is_satellite()]
         if len(nuclei) + len(satellites) != len(tree):
-            raise ValueError(
-                "Nodes that are neither Nuclei nor Satellites\n%s" % tree)
+            raise ValueError("Nodes that are neither Nuclei nor "
+                             "Satellites\n%s" % tree)
 
         if len(nuclei) == 0:
             raise ValueError("No nucleus:\n%s" % tree)

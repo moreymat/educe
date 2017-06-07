@@ -116,8 +116,7 @@ def read_tags(corpus, root_dir):
     ----------
     corpus : dict(FileId, GlozzDocument)
         Dictionary of documents keyed by their FileId.
-
-    root_dir : string
+    root_dir : str
         Path to the directory containing the output of the POS tagger,
         one file per document.
 

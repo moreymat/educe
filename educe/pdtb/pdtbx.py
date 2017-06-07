@@ -46,8 +46,8 @@ def _read_Selection(node):
     attr = node.attrib
     return ty.Selection(span=_read_SpanList(attr['spanList']),
                         gorn=_read_GornAddressList(attr['gornList']),
-                        text=on_single_element(node, None, lambda x: x.text,
-                                               'text'))
+                        text=on_single_element(
+                            node, None, lambda x: x.text, 'text'))
 
 
 def _read_InferenceSite(node):
@@ -83,7 +83,8 @@ def _read_Sup(node):
 
 def _read_Arg(node):
     sup = on_single_element(node, (), _read_Sup, 'sup')
-    attribution = on_single_element(node, (), _read_Attribution, 'attribution')
+    attribution = on_single_element(
+        node, (), _read_Attribution, 'attribution')
     return ty.Arg(selection=_read_Selection(node),
                   attribution=(None if attribution is () else attribution),
                   sup=(None if sup is () else sup))
@@ -98,9 +99,10 @@ def _read_Args(node):
 
 
 def _read_ExplicitRelationFeatures(node):
-    attribution = on_single_element(node, None, _read_Attribution,
-                                    'attribution')
-    connhead = on_single_element(node, None, _read_Connective, 'connhead')
+    attribution = on_single_element(
+        node, None, _read_Attribution, 'attribution')
+    connhead = on_single_element(
+        node, None, _read_Connective, 'connhead')
     return ty.ExplicitRelationFeatures(attribution=attribution,
                                        connhead=connhead)
 
@@ -120,8 +122,8 @@ def _read_ImplicitRelationFeatures(node):
         raise EduceXmlException('Was expecting no more than two connectives '
                                 '(got %d)' % len(connectives))
 
-    attribution = on_single_element(node, None, _read_Attribution,
-                                    'attribution')
+    attribution = on_single_element(
+        node, None, _read_Attribution, 'attribution')
     connective1 = _read_Connective(connectives[0])
     connective2 = (_read_Connective(connectives[1]) if len(connectives) == 2
                    else None)
@@ -137,8 +139,8 @@ def _read_ImplicitRelation(node):
 
 
 def _read_AltLexRelationFeatures(node):
-    attribution = on_single_element(node, None, _read_Attribution,
-                                    'attribution')
+    attribution = on_single_element(
+        node, None, _read_Attribution, 'attribution')
     attr = node.attrib
     semclass1_ = attr['semclass1']
     semclass2_ = attr.get('semclass2', None)  # optional
@@ -178,8 +180,8 @@ def read_Relation(node):
     elif tag == 'noRelation':
         return _read_NoRelation(node)
     else:
-        raise EduceXmlException("Don't know how to read relation with name "
-                                "%s" % tag)
+        raise EduceXmlException("Don't know how to read relation with "
+                                "name %s" % tag)
 
 
 def read_Relations(node):
@@ -326,8 +328,8 @@ def Relation_xml(itm):
     elif isinstance(itm, ty.NoRelation):
         return _NoRelation_xml(itm)
     else:
-        raise Exception("Don't know how to translate relation of type "
-                        "%s" % type(itm))
+        raise Exception("Don't know how to translate relation of "
+                        "type %s" % type(itm))
 
 
 def Relations_xml(itms):

@@ -220,7 +220,7 @@ class Context(object):
         Returns
         -------
         contexts: dict(educe.glozz.Unit, Context)
-            A dictionary with a context For each EDU in the document
+            A dictionary with a context for each EDU in the document.
         """
         if postags:
             egraph = EnclosureGraph(doc, postags)

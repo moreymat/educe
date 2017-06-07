@@ -5,14 +5,14 @@
 Extract features
 
 2017-01-27 this code is broken ; it relies on stac.keys.KeyGroupWriter
-which was deprecated and removed a while back.
+which was deprecated and removed a while back (MM to self: way to go!).
 """
 
 import codecs
 import csv
 import os
 
-import stac.csv
+import stac.util.stac_csv_format
 import stac.keys
 
 from ..args import\
