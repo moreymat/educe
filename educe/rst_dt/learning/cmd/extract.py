@@ -9,13 +9,8 @@ Extract features to CSV files
 """
 
 from __future__ import print_function
-from collections import defaultdict
-import csv
 import itertools
-from glob import glob
 import os
-import sys
-import time
 
 import educe.corpus
 import educe.glozz
