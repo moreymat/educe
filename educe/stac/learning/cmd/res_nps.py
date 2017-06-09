@@ -15,9 +15,10 @@ import sys
 
 from educe.stac import postag, corenlp
 from educe.stac.annotation import is_edu
-from educe.stac.learning.features import (
-    mk_env, get_players, enclosed_trees, is_nplike, FeatureInput, LexWrapper
+from educe.stac.learning.doc_vectorizer import (
+    mk_env, get_players, FeatureInput, LexWrapper
 )
+from educe.stac.learning.features import enclosed_trees, is_nplike
 from educe.util import (
     add_corpus_filters, fields_without, mk_is_interesting, concat, concat_l
 )
