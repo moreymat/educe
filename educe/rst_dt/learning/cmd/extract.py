@@ -22,15 +22,16 @@ import educe.glozz
 import educe.stac
 import educe.util
 
-from educe.learning.edu_input_format import (dump_all, dump_labels,
-                                             load_labels)
-from educe.learning.vocabulary_format import (dump_vocabulary,
-                                              load_vocabulary)
-from ..args import add_usual_input_args
-from ..doc_vectorizer import DocumentCountVectorizer, DocumentLabelExtractor
-from educe.rst_dt.corpus import RstDtParser
-from educe.rst_dt.ptb import PtbParser
+from educe.learning.edu_input_format import (
+    dump_all, dump_labels, load_labels)
+from educe.learning.vocabulary_format import (
+    dump_vocabulary, load_vocabulary)
 from educe.rst_dt.corenlp import CoreNlpParser
+from educe.rst_dt.corpus import RstDtParser
+from educe.rst_dt.learning.args import add_usual_input_args
+from educe.rst_dt.learning.doc_vectorizer import (
+    DocumentCountVectorizer, DocumentLabelExtractor)
+from educe.rst_dt.ptb import PtbParser
 
 
 NAME = 'extract'
@@ -131,11 +132,9 @@ def config_argparser(parser):
 # ---------------------------------------------------------------------
 # main
 # ---------------------------------------------------------------------
-
 def extract_dump_instances(docs, instance_generator, feature_set,
-                           lecsie_data_dir, vocabulary,
-                           split_feat_space, labels,
-                           live, ordered_pairs, output, corpus,
+                           lecsie_data_dir, vocabulary, split_feat_space,
+                           labels, live, ordered_pairs, output, corpus,
                            file_split='corpus'):
     """Extract and dump instances.
 
@@ -143,31 +142,23 @@ def extract_dump_instances(docs, instance_generator, feature_set,
     ----------
     docs : list of DocumentPlus
         Documents
-
     instance_generator : (string, function)
         Instance generator: the first element is a string descriptor of
         the instance generator, the second is the instance generator
         itself: a function from DocumentPlus to list of EDU pairs.
-
     vocabulary : filepath
         Path to vocabulary
-
     split_feat_space : string
         Splitter for feature space
-
     labels : filepath?
         Path to labelset?
-
     live : TODO
         TODO
-
     ordered_pairs : boolean
         If True, DU pairs (instances) are ordered pairs, i.e.
         (src, tgt) <> (tgt, src).
-
     output : string
         Path to the output directory, e.g. 'TMP/data'.
-
     corpus : TODO
         TODO
     """
@@ -207,11 +198,9 @@ def extract_dump_instances(docs, instance_generator, feature_set,
         vocab = None
         min_df = 5
 
-    vzer = DocumentCountVectorizer(instance_gen,
-                                   feature_set,
+    vzer = DocumentCountVectorizer(instance_gen, feature_set,
                                    lecsie_data_dir=lecsie_data_dir,
-                                   min_df=min_df,
-                                   vocabulary=vocab,
+                                   min_df=min_df, vocabulary=vocab,
                                    split_feat_space=split_feat_space)
     # pylint: disable=invalid-name
     # X, y follow the naming convention in sklearn
@@ -229,9 +218,8 @@ def extract_dump_instances(docs, instance_generator, feature_set,
             labelset = load_labels(labels)
         else:
             labelset = None
-        labtor = DocumentLabelExtractor(instance_gen,
-                                        ordered_pairs=ordered_pairs,
-                                        labelset=labelset)
+        labtor = DocumentLabelExtractor(
+            instance_gen, ordered_pairs=ordered_pairs, labelset=labelset)
         if labels is not None:
             labtor.fit(docs)
             y_gen = labtor.transform(docs)
@@ -316,16 +304,12 @@ def main(args):
     # retrieve parameters
     feature_set = args.feature_set
     live = args.parsing
-
-    # NEW lecsie features
-    lecsie_data_dir = args.lecsie_data_dir
-
+    lecsie_data_dir = args.lecsie_data_dir  # NEW lecsie features
     # RST data
     # fileX docs are currently not supported by CoreNLP
     exclude_file_docs = args.corenlp_out_dir
 
-    rst_reader = RstDtParser(args.corpus, args,
-                             coarse_rels=args.coarse,
+    rst_reader = RstDtParser(args.corpus, args, coarse_rels=args.coarse,
                              fix_pseudo_rels=args.fix_pseudo_rels,
                              nary_enc=args.nary_enc,
                              exclude_file_docs=exclude_file_docs)
@@ -423,15 +407,8 @@ def main(args):
                               lambda doc: doc.all_edu_pairs(
                                   ordered=ordered_pairs))
         split_feat_space = 'dir_sent'
-
     # do the extraction
     extract_dump_instances(docs, instance_generator, feature_set,
-                           lecsie_data_dir,
-                           args.vocabulary,
-                           split_feat_space,
-                           args.labels,
-                           live,
-                           ordered_pairs,
-                           args.output,
-                           args.corpus,
-                           file_split=args.file_split)
+                           lecsie_data_dir, args.vocabulary, split_feat_space,
+                           args.labels, live, ordered_pairs, args.output,
+                           args.corpus, file_split=args.file_split)
