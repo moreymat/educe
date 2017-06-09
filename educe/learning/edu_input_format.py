@@ -214,7 +214,7 @@ def _load_labels_header(f):
     return labels
 
 
-def load_labels(f, stored_as='header'):
+def load_labels(f, stored_as='file'):
     """Read label set into a dictionary mapping labels to indices.
 
     Parameters
