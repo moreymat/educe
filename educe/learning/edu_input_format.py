@@ -9,12 +9,11 @@ import csv
 
 import six
 
-from .svmlight_format import dump_svmlight_file
-# WIP load_edu_input_file
-# FIXME adapt to STAC
-from educe.annotation import Span
-from educe.corpus import FileId
-from educe.rst_dt.annotation import EDU as RstEDU
+# FIXME adapt load_edu_input_file to STAC
+from educe.annotation import Span  # WIP load_edu_input_file
+from educe.corpus import FileId  # WIP load_edu_input_file
+from educe.learning.svmlight_format import dump_svmlight_file
+from educe.rst_dt.annotation import EDU as RstEDU  # WIP load_edu_input_file
 
 # pylint: disable=invalid-name
 # a lot of the names here are chosen deliberately to
@@ -170,8 +169,19 @@ def labels_comment(class_mapping):
     return comment
 
 
-def _load_labels(f):
-    """Actually read the label set"""
+def _load_labels_file(f):
+    """Actually read the label set from a mapping file.
+
+    Parameters
+    ----------
+    f : str
+        Mapping file, each line pairs an integer index with a label.
+
+    Returns
+    -------
+    labels : dict from str to int
+        Mapping from relation label to integer.
+    """
     labels = dict()
     for line in f:
         i, lbl = line.strip().split()
@@ -180,8 +190,54 @@ def _load_labels(f):
     return labels
 
 
-def load_labels(f):
-    """Read label set into a dictionary mapping labels to indices"""
+def _load_labels_header(f):
+    """Actually read the label set from the header of a features file.
+
+    Previous versions of educe dumped the labels in the header of the
+    svmlight features file: The first line was commented and contained
+    the list of labels, mapped to indices from 1 to n.
+
+    Parameters
+    ----------
+    f : str
+        Features file, whose first line is a comment with the list of labels.
+
+    Returns
+    -------
+    labels : dict from str to int
+        Mapping from relation label to integer.
+    """
+    line = f.readline()
+    seq = line[1:].split()[1:]
+    labels = {lbl: idx for idx, lbl in enumerate(seq, start=1)}
+    labels['__UNK__'] = 0
+    return labels
+
+
+def load_labels(f, stored_as='header'):
+    """Read label set into a dictionary mapping labels to indices.
+
+    Parameters
+    ----------
+    f : str
+        File containing the labels.
+    stored_as : str, one of {'header', 'file'}
+        Storage mode of the labelset, as the `header` (commented first
+        line) of an svmlight features file, or as an independent `file`
+        where each line pairs an integer index with a label.
+
+    Returns
+    -------
+    labels : dict from str to int
+        Mapping from relation label to integer.
+    """
+    if stored_as == 'header':
+        _load_labels = _load_labels_as_header
+    elif stored_as == 'file':
+        _load_labels = _load_labels_as_file
+    else:
+        raise ValueError(
+            "load_labels: stored_as must be one of {'header', 'file'}")
     with codecs.open(f, 'r', 'utf-8') as f:
         return _load_labels(f)
 
@@ -204,7 +260,7 @@ def dump_labels(labelset, f):
         _dump_labels(labelset, f)
 
 
-def dump_all(X_gen, y_gen, f, docs, instance_generator):
+def dump_all(X_gen, y_gen, f, docs, instance_generator, class_mapping=None):
     """Dump a whole dataset: features (in svmlight) and EDU pairs.
 
     Parameters
@@ -214,15 +270,17 @@ def dump_all(X_gen, y_gen, f, docs, instance_generator):
 
     y_gen : iterable of iterable of int
         Ground truth labels.
-
     f : str
         Output features file path
-
     docs : list of DocumentPlus
         Documents
-
     instance_generator : function from doc to iterable of pairs
         TODO
+    class_mapping : dict(str, int), optional
+        Mapping from label to int. If None, it is ignored so you need
+        to check a proper call to dump_labels has been made elsewhere.
+        If not None, the list of labels ordered by index is written as
+        the header of the svmlight features file, as a comment line.
     """
     # dump EDUs
     edu_input_file = f + '.edu_input'
@@ -232,4 +290,10 @@ def dump_all(X_gen, y_gen, f, docs, instance_generator):
     dump_pairings_file((instance_generator(doc) for doc in docs),
                        pairings_file)
     # dump vectorized pairings with label
-    dump_svmlight_file(X_gen, y_gen, f)
+    # the labelset will be written in a comment at the beginning of the
+    # svmlight file
+    if class_mapping is not None:
+        comment = labels_comment(class_mapping)
+    else:
+        comment = ''
+    dump_svmlight_file(X_gen, y_gen, f, comment=comment)
