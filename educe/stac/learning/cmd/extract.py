@@ -190,7 +190,7 @@ def main_pairs(args):
     instance_generator = lambda x: x.edu_pairs()
 
     if args.labels is not None:
-        labelset = load_labels(args.labels)
+        labelset = load_labels(args.labels, stored_as='file')
         labels = [lbl for lbl, idx
                   in sorted(labelset.items(), key=lambda k, v: v)]
         # LabelVectorizer.__init__ automatically reserves the first three

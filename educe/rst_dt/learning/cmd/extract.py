@@ -159,11 +159,9 @@ def extract_dump_instances(docs, instance_generator, feature_set,
     """
     # get instance generator and its descriptor
     instance_descr, instance_gen = instance_generator
-
     # setup persistency
     if not os.path.exists(output):
         os.makedirs(output)
-
     corpus_name = os.path.basename(corpus)
 
     if live:
@@ -192,7 +190,6 @@ def extract_dump_instances(docs, instance_generator, feature_set,
     else:
         vocab = None
         min_df = 5
-
     vzer = DocumentCountVectorizer(instance_gen, feature_set,
                                    lecsie_data_dir=lecsie_data_dir,
                                    min_df=min_df, vocabulary=vocab,
@@ -210,7 +207,7 @@ def extract_dump_instances(docs, instance_generator, feature_set,
         y_gen = itertools.repeat(0)
     else:
         if labels is not None:
-            labelset = load_labels(labels)
+            labelset = load_labels(labels, stored_as='file')
         else:
             labelset = None
         labtor = DocumentLabelExtractor(
