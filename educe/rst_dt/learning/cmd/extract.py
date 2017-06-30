@@ -253,7 +253,6 @@ def extract_dump_instances(docs, instance_generator, feature_set,
     else:
         raise ValueError('Unknown value for args.file_split : {}'.format(
             args.file_split))
-
     # dump labelset
     if labels is not None:
         # relative path to get a correct symlink

@@ -248,7 +248,6 @@ def main_pairs(args):
 
         dump_all(X_gen, y_gen, out_file, dialogues, instance_generator)
     # end WIP
-
     # dump vocabulary
     vocab_file = fp.join(outdir,
                          '{corpus_name}.relations.sparse.vocab'.format(

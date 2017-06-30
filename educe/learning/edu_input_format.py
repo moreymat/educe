@@ -267,7 +267,6 @@ def dump_all(X_gen, y_gen, f, docs, instance_generator, class_mapping=None):
     ----------
     X_gen : iterable of iterable of int arrays
         Feature vectors.
-
     y_gen : iterable of iterable of int
         Ground truth labels.
     f : str

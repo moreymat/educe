@@ -26,7 +26,6 @@ class KeyGroupVectorizer(object):
         vectors : list of list of KeyGroup
             List of feature matrices, one list per doc, one line per
             sample.
-
         fixed_vocab : boolean, defaults to False
             If True, use the vocabulary that hopefully has already been
             set during `fit()`.
@@ -35,7 +34,6 @@ class KeyGroupVectorizer(object):
         -------
         vocabulary : dict(str, int)
             Mapping from features to integers.
-
         X : list of list of list of tuple(int, float)
             List of feature matrices.
         """
@@ -84,7 +82,6 @@ class KeyGroupVectorizer(object):
                 # print('doc ', str(i))  # DEBUG
             x = feature_acc[current_row:next_row]
             X[-1].append(x)
-
         return vocabulary, X
 
     def fit_transform(self, vectors):
