@@ -25,7 +25,7 @@ LBL_FNS = [
     ('S+H', lambda span: span[3]),
     ('N+H', lambda span: '{}-{}'.format(span[1], span[3])),
     ('R+H', lambda span: '{}-{}'.format(span[2], span[3])),
-    ('F+H', lambda span: '{}-{}'.format(span[2], span[1])),
+    ('F+H', lambda span: '{}-{}-{}'.format(span[2], span[1], span[3])),
     # end WIP head
 ]
 
