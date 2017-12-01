@@ -28,25 +28,18 @@ def parseval_scores(ctree_true, ctree_pred, subtree_filter=None,
     ----------
     ctree_true : list of list of RSTTree or SimpleRstTree
         List of reference RST trees, one per document.
-
     ctree_pred : list of list of RSTTree or SimpleRstTree
         List of predicted RST trees, one per document.
-
     subtree_filter : function, optional
         Function to filter all local trees.
-
     exclude_root : boolean, defaults to True
         If True, exclude the root node of both ctrees from the eval.
-
     lbl_fn: function, optional
         Function to relabel spans.
-
     labels : list of string, optional
         Corresponds to sklearn's target_names IMO
-
     average : one of {'micro', 'macro'}, optional
         TODO, see scores_structured
-
     per_doc : boolean, optional
         If True, precision, recall and f1 are computed for each document
         separately then averaged over documents.
@@ -58,17 +51,13 @@ def parseval_scores(ctree_true, ctree_pred, subtree_filter=None,
     precision : float (if average is not None) or array of float, shape =\
         [n_unique_labels]
         Weighted average of the precision of each class.
-
     recall : float (if average is not None) or array of float, shape =\
         [n_unique_labels]
-
     fbeta_score : float (if average is not None) or array of float, shape =\
         [n_unique_labels]
-
     support_true : int (if average is not None) or array of int, shape =\
         [n_unique_labels]
         The number of occurrences of each label in ``ctree_true``.
-
     support_pred : int (if average is not None) or array of int, shape =\
         [n_unique_labels]
         The number of occurrences of each label in ``ctree_pred``.
@@ -158,7 +147,8 @@ def parseval_compact_report(parser_true, parser_preds,
                             percent=False,
                             print_support=True,
                             per_doc=False,
-                            add_trivial_spans=False):
+                            add_trivial_spans=False,
+                            out_format='text'):
     """Build a text report showing the F1-scores of the PARSEVAL metrics
     for a list of parsers.
 
@@ -172,25 +162,32 @@ def parseval_compact_report(parser_true, parser_preds,
     parser_true: str
         Name of the parser used as reference ; it needs to be in the
         keys of parser_preds.
-
     parser_preds: list of (parser_name, ctree_pred)
         Predicted c-trees for each parser.
-
     metric_types: list of strings, optional
         Metrics that need to be included in the report ; if None is
         given, defaults to ['S', 'N', 'R', 'F'].
-
     digits: int, defaults to 4
         Number of decimals to print.
-
     span_sel: TODO
         TODO
-
     per_doc: boolean, defaults to False
         If True, compute p, r, f for each doc separately then compute the
         mean of each score over docs. This is *not* the correct
         implementation, but it corresponds to that in DPLP.
+    out_format : one of {'text', 'latex'}
+        Output format.
+
+    Returns
+    -------
+    report : str
+        Textual report.
     """
+    out_format_options = ('text', 'latex')
+    if out_format not in out_format_options:
+        raise ValueError('out_format has to be one of ' +
+                         str(out_format_options))
+
     if lbl_fns is None:
         # we require a labelled span to be a pair (span, lbl)
         # where span and lbl can be anything, for example
@@ -201,18 +198,41 @@ def parseval_compact_report(parser_true, parser_preds,
     metric_types = [k for k, v in lbl_fns]
 
     # prepare scaffold for report
-    width = max(len(parser_name) for parser_name, _ in parser_preds)
-
     headers = [x for x in metric_types]
+    headers = ["parser"] + headers
+    if out_format == 'latex':
+        # bold font for column headers
+        headers = ['\\textbf{{{}}}'.format(x) for x in headers]
     if print_support:
         headers += ["support"]
+    # width of first column (parser name)
+    width = max([len(parser_name) for parser_name, _ in parser_preds] +
+                [len(headers[0])])
     fmt = '%% %ds' % width  # first col: parser name
-    fmt += '  '
-    fmt += ' '.join(['% 9s' for _ in headers])
+    if out_format == 'latex':
+        fmt += ' &'
+        fmt += ' &'.join(['% {}s'.format(len(x)) for x in headers[1:]])
+        fmt += ' \\\\'  # print "\\"
+    else:  # out_format == 'text'
+        fmt += '  '
+        fmt += ' '.join(['% 9s' for _ in headers[1:]])
     fmt += '\n'
-    headers = [""] + headers
-    report = fmt % tuple(headers)
-    report += '\n'
+
+    report = ""
+    if out_format == 'latex':
+        report += '\n'.join([
+            '\\begin{table}[h]',
+            '\\caption{\\label{ctree-eval} Parseval F$_1$ scores. S = unlabelled Spans, N = spans labelled with Nuclearity, R = spans labelled with Relation, F = fully labelled spans (nuclearity and relation). Spans augmented with their head -(+H), their split points (+K), the head of their subspans (+HH)}',
+            '\\begin{center}',
+            '\\begin{tabular}{' + 'l' * len(headers) +'}',
+            '\\toprule',
+            ''
+        ])
+    report += fmt % tuple(headers)
+    if out_format == 'latex':
+        report += '\\midrule\n'
+    else:
+        report += '\n'
 
     # display percentages
     if percent:
@@ -256,7 +276,18 @@ def parseval_compact_report(parser_true, parser_preds,
             values += ["{0:.0f}".format(support)]  # support_true
 
         report += fmt % tuple(values)
+    # LaTeX footer if relevant
+    if out_format == 'latex':
+        report += '\n'.join([
+            '\\bottomrule',
+            '\\end{tabular}',
+            '\\end{center}',
+            '\\end{table}'
+        ])
+    # end table content
 
+    # replace underscores in parser names etc
+    report = report.replace('_', ' ')
     return report
 
 
@@ -345,6 +376,7 @@ def parseval_similarity(parser_preds,
     if out_format == 'latex':
         report += '\n'.join([
             '\\begin{table}[h]',
+            '\\caption{\\label{ctree-sim} Similarity matrix on parsers predictions against non-binarized trees.}',
             '\\begin{center}',
             '\\begin{tabular}{' + 'l' * len(headers) +'}',
             '\\toprule',
@@ -386,7 +418,6 @@ def parseval_similarity(parser_preds,
             '\\bottomrule',
             '\\end{tabular}',
             '\\end{center}',
-            '\\caption{\\label{ctree-sim} Similarity matrix on parsers predictions against non-binarized trees.}',
             '\\end{table}'
         ])
     report = report.replace('_', ' ')

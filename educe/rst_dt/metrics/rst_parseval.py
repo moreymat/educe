@@ -26,7 +26,64 @@ LBL_FNS = [
     ('N+H', lambda span: '{}-{}'.format(span[1], span[3])),
     ('R+H', lambda span: '{}-{}'.format(span[2], span[3])),
     ('F+H', lambda span: '{}-{}-{}'.format(span[2], span[1], span[3])),
-    # end WIP head
+    # WIP 2017-12-01 add split points to evals
+    # caveat: n-ary nodes have n-1 split points, in which case the label
+    # should not be a simple str of the concatenation of the split points,
+    # but a set so we can intersect the predicted and reference split
+    # points for a given span and score fractions of points
+    ('S+K', lambda span: ''.join(str(i) for i in span[4])),
+    ('N+K', lambda span: '{}-{}'.format(span[1],
+                                        ''.join(str(i) for i in span[4]))),
+    ('R+K', lambda span: '{}-{}'.format(span[2],
+                                        ''.join(str(i) for i in span[4]))),
+    ('F+K', lambda span: '{}-{}-{}'.format(span[2], span[1],
+                                           ''.join(str(i) for i in span[4]))),
+    # WIP 2017-12-01 add head of all kids to evals
+    ('S+HH', lambda span: ''.join(str(i) for i in span[5])),
+    ('N+HH', lambda span: '{}-{}'.format(span[1],
+                                         ''.join(str(i) for i in span[5]))),
+    ('R+HH', lambda span: '{}-{}'.format(span[2],
+                                         ''.join(str(i) for i in span[5]))),
+    ('F+HH', lambda span: '{}-{}-{}'.format(span[2], span[1],
+                                            ''.join(str(i) for i in span[5]))),
+    # WIP 2017-12-01 combinations of split point, head, sub-heads
+    ('S+K+HH', lambda span: '{}-{}'.format(
+        ''.join(str(i) for i in span[4]),
+        ''.join(str(i) for i in span[5]))),
+    ('N+K+HH', lambda span: '{}-{}-{}'.format(
+        span[1],
+        ''.join(str(i) for i in span[4]),
+        ''.join(str(i) for i in span[5]))),
+    ('R+K+HH', lambda span: '{}-{}-{}'.format(
+        span[2],
+        ''.join(str(i) for i in span[4]),
+        ''.join(str(i) for i in span[5]))),
+    ('F+K+HH', lambda span: '{}-{}-{}-{}'.format(
+        span[2],
+        span[1],
+        ''.join(str(i) for i in span[4]),
+        ''.join(str(i) for i in span[5]))),
+    # most complete metric: head, split point, sub-heads
+    ('S+H+K+HH', lambda span: '{}-{}-{}'.format(
+        span[3],
+        ''.join(str(i) for i in span[4]),
+        ''.join(str(i) for i in span[5]))),
+    ('N+H+K+HH', lambda span: '{}-{}-{}-{}'.format(
+        span[1],
+        span[3],
+        ''.join(str(i) for i in span[4]),
+        ''.join(str(i) for i in span[5]))),
+    ('R+H+K+HH', lambda span: '{}-{}-{}-{}'.format(
+        span[2],
+        span[3],
+        ''.join(str(i) for i in span[4]),
+        ''.join(str(i) for i in span[5]))),
+    ('F+H+K+HH', lambda span: '{}-{}-{}-{}-{}'.format(
+        span[2],
+        span[1],
+        span[3],
+        ''.join(str(i) for i in span[4]),
+        ''.join(str(i) for i in span[5]))),    
 ]
 
 
@@ -41,19 +98,14 @@ def rst_parseval_scores(ctree_true, ctree_pred, lbl_fn, subtree_filter=None,
     ----------
     ctree_true : list of list of RSTTree or SimpleRstTree
         List of reference RST trees, one per document.
-
     ctree_pred : list of list of RSTTree or SimpleRstTree
         List of predicted RST trees, one per document.
-
     lbl_fn : function, optional
         Function to relabel spans.
-
     subtree_filter : function, optional
         Function to filter all local trees.
-
     labels : list of string, optional
         Corresponds to sklearn's target_names IMO
-
     average : one of {'micro', 'macro'}, optional
         TODO, see scores_structured
 
@@ -62,13 +114,10 @@ def rst_parseval_scores(ctree_true, ctree_pred, lbl_fn, subtree_filter=None,
     precision : float (if average is not None) or array of float, shape =\
         [n_unique_labels]
         Weighted average of the precision of each class.
-
     recall : float (if average is not None) or array of float, shape =\
         [n_unique_labels]
-
     fbeta_score : float (if average is not None) or array of float, shape =\
         [n_unique_labels]
-
     support : int (if average is not None) or array of int, shape =\
         [n_unique_labels]
         The number of occurrences of each label in ``ctree_true``.
@@ -88,7 +137,8 @@ def rst_parseval_compact_report(parser_true, parser_preds,
                                 print_support=True,
                                 per_doc=False,
                                 add_trivial_spans=False,
-                                stringent=False):
+                                stringent=False,
+                                out_format='text'):
     """Build a compact text report showing the f1-scores of the PARSEVAL
     discourse metrics.
 
@@ -100,10 +150,8 @@ def rst_parseval_compact_report(parser_true, parser_preds,
     ----------
     parser_true: str
         Name of the parser used as a ref.
-
     parser_preds: List of (parser_name, List of ctree_pred)
         List of predictions for each parser.
-
     ctree_type : one of {'RST', 'SimpleRST'}, defaults to 'RST'
         Type of ctrees considered in the evaluation procedure.
         'RST' is the standard type of ctrees used in the RST corpus,
@@ -115,34 +163,29 @@ def rst_parseval_compact_report(parser_true, parser_preds,
         are moved one node up compared to the standard RST trees. This
         triggers the exclusion of leaves from the eval, but the root node
         is kept.
-
     subtree_filter: function, optional
         Function to filter all local trees.
-
     metric_types : list of strings, optional
         Metrics that need to be included in the report ; if None is
         given, defaults to ['S', 'N', 'R', 'F'].
-
     digits : int, defaults to 4
         Number of decimals to print.
-
     print_support : boolean, defaults to True
         If True, the true support, i.e. the number of reference spans,
         is also displayed. This is useful to control whether the
         reference ctrees have been binarized.
-
     per_doc : boolean, defaults to False
         If True, compute p, r, f for each doc separately then compute the
         mean of each score over docs. This is *not* the correct
         implementation, but it corresponds to that in DPLP.
-
     add_trivial_spans : boolean, defaults to False
         If True, trivial spans 0-0, 0-n, 1-n are added ; this is meant to
         replicate the evaluation procedure of Li et al.'s dependency RST
         parser.
-
     stringent : boolean, defaults to False
         TODO
+    out_format : one of {'text', 'latex'}
+        Output format.
     """
     # filter root or leaves, depending on the type of ctree
     if ctree_type not in ['RST', 'SimpleRST']:
@@ -179,7 +222,8 @@ def rst_parseval_compact_report(parser_true, parser_preds,
                                    percent=percent,
                                    print_support=print_support,
                                    per_doc=per_doc,
-                                   add_trivial_spans=add_trivial_spans)
+                                   add_trivial_spans=add_trivial_spans,
+                                   out_format=out_format)
 
 
 def rst_parseval_similarity(parser_preds,
@@ -192,7 +236,7 @@ def rst_parseval_similarity(parser_preds,
                             per_doc=False,
                             add_trivial_spans=False,
                             stringent=False,
-                            out_format='str'):
+                            out_format='text'):
     """Build a similarity matrix showing the f1-scores of a PARSEVAL
     discourse metric.
 
@@ -244,7 +288,7 @@ def rst_parseval_similarity(parser_preds,
     stringent : boolean, defaults to False
         TODO
 
-    out_format : str, one of {'str', 'latex'}
+    out_format : str, one of {'text', 'latex'}
         Output format.
     """
     # filter root or leaves, depending on the type of ctree

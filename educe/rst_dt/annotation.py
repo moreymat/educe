@@ -277,6 +277,8 @@ class RSTTree(SearchableTree, Standoff):
         if len(children) == 1 and isinstance(children[0], EDU):
             # pre-terminal: head is num of terminal (EDU)
             node.head = children[0].num
+            node.split_pts = (children[0].num,)
+            node.kid_heads = (children[0].num,)
         else:
             # internal node
             kids_nuclei = [i for i, kid in enumerate(children)
@@ -299,6 +301,12 @@ class RSTTree(SearchableTree, Standoff):
             # its head is the head of its leftmost nucleus child
             lnuc = children[kids_nuclei[0]]
             node.head = lnuc.label().head
+            # split points: right end of each child but the last one
+            node.split_pts = tuple(kid.label().edu_span[1]
+                                   for kid in children[:-1])
+            # head of all kids
+            node.kid_heads = tuple(kid.label().head
+                                   for kid in children)
         # end WIP head
 
     def set_origin(self, origin):
@@ -408,13 +416,11 @@ class RSTTree(SearchableTree, Standoff):
         ----------
         subtree_filter : function, defaults to None
             Function to filter all local trees.
-
         exclude_root : boolean, defaults to False
             If True, exclude the span of the root node. This cannot be
             expressed with `subtree_filter` because the latter is limited
             to properties local to each subtree in isolation. Or maybe I
             just missed something.
-
         span_type : one of {'edus', 'chars'}
             Whether each span is expressed on EDU or character indices.
             Character indices are useful to compare spans from trees
@@ -434,10 +440,19 @@ class RSTTree(SearchableTree, Standoff):
         # 2017-04-12 enable char spans
         if span_type == 'chars':
             spans = [((tn.span.char_start, tn.span.char_end),
-                      tn.nuclearity, tn.rel, tn.head)
+                      tn.nuclearity,
+                      tn.rel,
+                      tn.head,
+                      tn.split_pts,
+                      tn.kid_heads)
                      for tn in tnodes]
         else:
-            spans = [(tn.edu_span, tn.nuclearity, tn.rel, tn.head)
+            spans = [(tn.edu_span,
+                      tn.nuclearity,
+                      tn.rel,
+                      tn.head,
+                      tn.split_pts,
+                      tn.kid_heads)
                      for tn in tnodes]
         return spans
 
@@ -479,10 +494,19 @@ class SimpleRSTTree(SearchableTree, Standoff):
         # WIP 2016-11-10 store num of head in node
         if len(children) == 1 and isinstance(children[0], EDU):
             node.head = children[0].num
+            # 2017-12-01 split points
+            node.split_pts = (children[0].num,)
+            node.kid_heads = (children[0].num,)
         else:
             # head is head of the leftmost nucleus child
             lnuc_idx = node.nuclearity.index('N')
             node.head = children[lnuc_idx].label().head
+            # split points: right end of each kid but the last one
+            node.split_pts = tuple(kid.label().edu_span[1]
+                                   for kid in children[:-1])
+            # kid heads
+            node.kid_heads = tuple(kid.label().head
+                                   for kid in children)
         # end WIP head
 
     def set_origin(self, origin):
@@ -515,13 +539,11 @@ class SimpleRSTTree(SearchableTree, Standoff):
         ----------
         subtree_filter : function, defaults to None
             Function to filter all local trees.
-
         exclude_root : boolean, defaults to False
             If True, exclude the span of the root node. This cannot be
             expressed with `subtree_filter` because the latter is limited
             to properties local to each subtree in isolation. Or maybe I
             just missed something.
-
         span_type : one of {'edus', 'chars'}
             Whether each span is expressed on EDU or character indices.
             Character indices are useful to compare spans from trees
@@ -541,10 +563,19 @@ class SimpleRSTTree(SearchableTree, Standoff):
         # 2017-04-12 enable char spans
         if span_type == 'chars':
             spans = [((tn.span.char_start, tn.span.char_end),
-                      tn.nuclearity, tn.rel, tn.head)
+                      tn.nuclearity,
+                      tn.rel,
+                      tn.head,
+                      tn.split_pts,
+                      tn.kid_heads)
                      for tn in tnodes]
         else:
-            spans = [(tn.edu_span, tn.nuclearity, tn.rel, tn.head)
+            spans = [(tn.edu_span,
+                      tn.nuclearity,
+                      tn.rel,
+                      tn.head,
+                      tn.split_pts,
+                      tn.kid_heads)
                      for tn in tnodes]
         return spans
 
