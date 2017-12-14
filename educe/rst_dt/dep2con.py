@@ -80,7 +80,6 @@ class DummyNuclearityClassifier(object):
         if self.strategy == "unamb_else_most_frequent":
             # FIXME automatically get these from the training set
             multinuc_lbls.extend(['joint', 'same-unit', 'textual'])
-
         elif self.strategy == "most_frequent_by_rel":
             # FIXME very dirty hack to avoid loading the RST-DT corpus
             # upfront (triggered by the import of
@@ -106,16 +105,46 @@ class DummyNuclearityClassifier(object):
         """
         y = []
         for dtree in X:
+            dt_edus = dtree.edus
+            dt_heads = dtree.heads
+            dt_labels = dtree.labels
             if self.strategy == "constant":
-                yi = [self.constant for rel in dtree.labels]
+                cst_nuc = self.constant
+                yi = [cst_nuc for rel in dt_labels]
                 y.append(yi)
             else:
+                multinuc_lbls = self.multinuc_lbls_
                 # FIXME NUC_R for the root?
                 # NB: we condition multinuclear relations on (i > head)
-                yi = [(NUC_N if (i > head and rel in self.multinuc_lbls_)
+                yi = [(NUC_N if (i > head and rel in multinuc_lbls)
                        else NUC_S)
                       for i, (head, rel)
-                      in enumerate(itertools.izip(dtree.heads, dtree.labels))]
+                      in enumerate(itertools.izip(dt_heads, dt_labels))]
+                # 2017-12-06 hacky fix: set nuclearity to NN for instances
+                # of fine-grained "majoritarily NN" relations in a class
+                # of relations that is majoritarily NS, in cases where these
+                # NN relations are clearly lexically signalled ;
+                # a quick corpus study on the RST-DT revealed 2 cases:
+                # * "Contrast" signalled by "but",
+                # * "(Inverted-)Sequence" signalled by "after"
+                if 'contrast' in dt_labels or 'temporal' in dt_labels:
+                    for i, (head, rel) in enumerate(itertools.izip(
+                            dt_heads, dt_labels)):
+                        if i < head:
+                            # left dependencies are SN (by construction)
+                            continue
+                        edu_txt = dt_edus[i].raw_text
+                        if rel == 'contrast':
+                            if(edu_txt.startswith('but') or
+                               edu_txt.startswith('But')):
+                                yi[i] = NUC_N
+                        elif rel == 'temporal':
+                            if (edu_txt.startswith('after') or
+                                edu_txt.startswith('After') or
+                                edu_txt.startswith('and') or
+                                edu_txt.startswith('And')):
+                                yi[i] = NUC_N
+                # end WIP 2017-12-06
                 y.append(yi)
 
         return y
@@ -725,23 +754,27 @@ def deptree_to_rst_tree(dtree):
     ctree: RSTTree
         RST constituency tree that corresponds to the dtree.
     """
-    heads = dtree.heads
-    ranks = dtree.ranks
-    origin = dtree.origin
+    dt_edus = dtree.edus
+    dt_heads = dtree.heads
+    dt_labels = dtree.labels
+    dt_nucs = dtree.nucs
+    dt_ranks = dtree.ranks
+    dt_origin = dtree.origin
 
     # gov -> (rank -> [deps])
     ranked_deps = defaultdict(lambda: defaultdict(list))
-    for dep, (gov, rnk) in enumerate(zip(heads[1:], ranks[1:]), start=1):
+    for dep, (gov, rnk) in enumerate(
+            zip(dt_heads[1:], dt_ranks[1:]), start=1):
         ranked_deps[gov][rnk].append(dep)
 
     # store pointers to substructures as they are built
-    subtrees = [None for x in dtree.edus]
+    subtrees = [None for x in dt_edus]
 
     # compute height of each governor in the dtree
-    heights = [0 for x in dtree.edus]
+    heights = [0 for x in dt_edus]
     while True:
         old_heights = tuple(heights)
-        for i, hd in enumerate(dtree.heads[1:], start=1):
+        for i, hd in enumerate(dt_heads[1:], start=1):
             heights[hd] = max(heights[hd], heights[i] + 1)
         if tuple(heights) == old_heights:
             # fixpoint reached
@@ -754,11 +787,11 @@ def deptree_to_rst_tree(dtree):
     # bottom-up traversal of the dtree: create sub-ctrees
     # * create leaves of the RST ctree: initialize them with the
     # label and nuclearity from the dtree
-    for i in range(1, len(dtree.edus)):
-        node = Node(dtree.nucs[i], (i, i), dtree.edus[i].span,
-                    dtree.labels[i], context=None)  # TODO context?
-        children = [dtree.edus[i]]  # WIP
-        subtrees[i] = RSTTree(node, children, origin=origin)
+    for i in range(1, len(dt_edus)):
+        node = Node(dt_nucs[i], (i, i), dt_edus[i].span,
+                    dt_labels[i], context=None)  # TODO context?
+        children = [dt_edus[i]]  # WIP
+        subtrees[i] = RSTTree(node, children, origin=dt_origin)
 
     # * create internal nodes: for each governor, create one projection
     # per rank of dependents ; each time a projection node is created,
@@ -771,8 +804,8 @@ def deptree_to_rst_tree(dtree):
             for rnk, deps in sorted(ranked_deps[gov].items()):
                 # overwrite the nuc and lbl of the head node, using the
                 # dependencies of this rank
-                dep_nucs = [dtree.nucs[x] for x in deps]
-                dep_lbls = [dtree.labels[x] for x in deps]
+                dep_nucs = [dt_nucs[x] for x in deps]
+                dep_lbls = [dt_labels[x] for x in deps]
                 if all(x == NUC_N for x in dep_nucs):
                     # all nuclei must have the same label, to denote
                     # a unique multinuclear relation
@@ -787,8 +820,8 @@ def deptree_to_rst_tree(dtree):
                 gov_node.rel = gov_lbl
                 # create one projection node for the head + the dependencies
                 # of this rank
-                proj_lbl = dtree.labels[gov]
-                proj_nuc = dtree.nucs[gov]
+                proj_lbl = dt_labels[gov]
+                proj_nuc = dt_nucs[gov]
                 proj_children = [subtrees[x] for x in sorted([gov] + deps)]
                 proj_edu_span = (proj_children[0].label().edu_span[0],
                                  proj_children[-1].label().edu_span[1])
@@ -797,7 +830,7 @@ def deptree_to_rst_tree(dtree):
                 proj_node = Node(proj_nuc, proj_edu_span, proj_txt_span,
                                  proj_lbl, context=None)  # TODO context?
                 subtrees[gov] = RSTTree(proj_node, proj_children,
-                                        origin=origin)
+                                        origin=dt_origin)
     # create top node and whole tree
     # this is where we handle the fake root
     gov = 0
@@ -821,8 +854,8 @@ def deptree_to_rst_tree(dtree):
         for rnk, deps in sorted(ranked_deps[gov].items()):
             # overwrite the nuc and lbl of the head node, using the
             # dependencies of this rank
-            dep_nucs = [dtree.nucs[x] for x in deps]
-            dep_lbls = [dtree.labels[x] for x in deps]
+            dep_nucs = [dt_nucs[x] for x in deps]
+            dep_lbls = [dt_labels[x] for x in deps]
             if all(x == NUC_N for x in dep_nucs):
                 # all nuclei must have the same label, to denote
                 # a unique multinuclear relation
@@ -837,8 +870,8 @@ def deptree_to_rst_tree(dtree):
             gov_node.rel = gov_lbl
             # create one projection node for the head + the dependencies
             # of this rank
-            proj_lbl = dtree.labels[gov]
-            proj_nuc = dtree.nucs[gov]
+            proj_lbl = dt_labels[gov]
+            proj_nuc = dt_nucs[gov]
             proj_children = [subtrees[x] for x in sorted([gov] + deps)]
             proj_edu_span = (proj_children[0].label().edu_span[0],
                              proj_children[-1].label().edu_span[1])
@@ -847,7 +880,7 @@ def deptree_to_rst_tree(dtree):
             proj_node = Node(proj_nuc, proj_edu_span, proj_txt_span,
                              proj_lbl, context=None)  # TODO context?
             subtrees[gov] = RSTTree(proj_node, proj_children,
-                                    origin=origin)
+                                    origin=dt_origin)
     # final RST ctree
     rst_tree = subtrees[0]
     return rst_tree
