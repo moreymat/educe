@@ -244,6 +244,58 @@ class InsideOutAttachmentRanker(object):
 
                 targets = [i for i, hd in enumerate(dtree.heads)
                            if hd == head]
+                # 2017-12-19 WIP prioritize (right) adjacent
+                # parentheticals + TODO relative clauses
+                if True:
+                    head_edu = dtree.edus[head]
+                    if head - 1 in targets:
+                        # prioritize left adjacent if left + head form
+                        # a quoted discourse
+                        tgt_adj = head - 1
+                        tgt_edu = dtree.edus[tgt_adj]
+                        if ((tgt_edu.raw_text.startswith('"') and
+                             head_edu.raw_text.endswith(',"'))):
+                            ranks[tgt_adj] = rank_idx
+                            rank_idx += 1
+                            # remove this EDU from remaining targets
+                            targets = [tgt for tgt in targets
+                                       if tgt != tgt_adj]
+                            # DEBUG
+                            right_tgts = [x for x in targets if head < x]
+                            if False and right_tgts:
+                                print('LLLLLLL')
+                                print(tgt_adj, tgt_edu.raw_text)
+                                print(head, head_edu.raw_text)
+                                for right_tgt in sorted(right_tgts):
+                                    print(right_tgt, dtree.edus[right_tgt].raw_text)
+                                # raise ValueError("gne")
+                            # end DEBUG
+                    if head + 1 in targets:
+                        # prioritize right adjacent parentheticals and
+                        # relative clauses ; and prioritize right adj
+                        # if head starts a quoted discourse
+                        tgt_adj = head + 1
+                        tgt_edu = dtree.edus[tgt_adj]
+                        if ((tgt_edu.raw_text.startswith('(') or
+                             tgt_edu.raw_text.startswith('that') or
+                             (head_edu.raw_text.startswith('"') and
+                              '"' not in head_edu.raw_text[1:]))):
+                            ranks[tgt_adj] = rank_idx
+                            rank_idx += 1
+                            # remove this EDU from remaining targets
+                            targets = [tgt for tgt in targets
+                                       if tgt != tgt_adj]
+                            # DEBUG
+                            left_tgts = [x for x in targets if x < head]
+                            if False and left_tgts:
+                                print('RRRRRRR')
+                                for left_tgt in sorted(left_tgts):
+                                    print(left_tgt, dtree.edus[left_tgt].raw_text)
+                                print(head, head_edu.raw_text)
+                                print(tgt_adj, tgt_edu.raw_text)
+                                # raise ValueError("gne")
+                            # end DEBUG
+                # end 2017-12-19 WIP right adjacent
                 if self.prioritize_same_unit:
                     # gobble everything between the head and the rightmost
                     # "same-unit"

@@ -8,6 +8,7 @@
 Convert RST trees to dependency trees and back.
 """
 
+from collections import defaultdict
 import itertools
 
 import numpy as np
@@ -83,10 +84,8 @@ class RstDepTree(object):
     ----------
     edus : list of EDU
         List of the EDUs of this document.
-
     origin : Document?, optional
         TODO
-
     nary_enc : one of {'chain', 'tree'}, optional
         Type of encoding used for n-ary relations: 'chain' or 'tree'.
         This determines for example how fragmented EDUs are resolved.
@@ -274,6 +273,26 @@ class RstDepTree(object):
                              if self.heads[i] == gov_idx)
         sorted_deps = [i for rk, i in ranked_deps]
         return sorted_deps
+
+    def ordered_deps(self):
+        """Get the ordered list of dependents for all EDUs.
+
+        Not sure we need both deps() and ordered_deps(), but not sure
+        which should be kept either.
+
+        Returns
+        -------
+        ord_deps : dict(gov -> list of (rnk, dep))
+            Ordered dependents for each EDU.
+        """
+        rnk_deps = defaultdict(list)  # gov -> list of (rnk, dep)
+        for i, (gov, rnk, nuc, lbl) in enumerate(
+                zip(self.heads[1:], self.ranks[1:], self.nucs[1:],
+                    self.labels[1:]),
+                start=1):
+            rnk_deps[gov].append((rnk, i))
+        ord_deps = {k: sorted(v) for k, v in rnk_deps.items()}
+        return ord_deps
 
     def fragmented_edus(self):
         """Get the fragmented EDUs in this RST tree.
